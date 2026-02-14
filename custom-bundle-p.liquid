@@ -152,13 +152,7 @@
     <h1 class="bd-title">{{ section.settings.bundle_title }}</h1>
     <div class="bd-desc">{{ section.settings.bundle_description }}</div>
 
-    <div class="bd-price-bar">
-      <span class="bd-price-bar__val" id="BDPrice-{{ section.id }}">$0.00</span>
-      <div class="bd-price-bar__meta">
-        <span id="BDItems-{{ section.id }}">0 items</span>
-        <span class="bd-art-badge" id="BDArtBadge-{{ section.id }}">No artwork</span>
-      </div>
-    </div>
+
 
     <!-- Artwork upload (Front) -->
     <div class="bd-upload-section" id="BDUpSec1-{{ section.id }}" style="display:none;">
@@ -230,6 +224,15 @@
             </div>
           </div>
           {% endif %}{% endfor %}
+          {% if block.settings.enable_print_area_1 or block.settings.enable_print_area_2 %}
+          <div class="bd-grp">
+            <label class="bd-lbl">Print Areas</label>
+            <div class="bd-checks">
+              {% if block.settings.enable_print_area_1 %}<label class="bd-chk"><input type="checkbox" checked data-area="1" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_1_label }}</label>{% endif %}
+              {% if block.settings.enable_print_area_2 %}<label class="bd-chk"><input type="checkbox"  data-area="2" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_2_label }}</label>{% endif %}
+            </div>
+          </div>
+          {% endif %}
           {% for option in bp.options_with_values %}{% if option.name == 'Size' or option.name == 'Sizes' %}
           <div class="bd-grp">
             <label class="bd-lbl">Sizes & Qty <span class="bd-sub">(max {{ mq }})</span></label>
@@ -250,19 +253,18 @@
             <div id="BDSelList-{{ block.id }}" class="bd-selection-list"></div>
           </div>
 
-          {% if block.settings.enable_print_area_1 or block.settings.enable_print_area_2 %}
-          <div class="bd-grp">
-            <label class="bd-lbl">Print Areas</label>
-            <div class="bd-checks">
-              {% if block.settings.enable_print_area_1 %}<label class="bd-chk"><input type="checkbox" checked data-area="1" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_1_label }}</label>{% endif %}
-              {% if block.settings.enable_print_area_2 %}<label class="bd-chk"><input type="checkbox" data-area="2" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_2_label }}</label>{% endif %}
-            </div>
-          </div>
-          {% endif %}
+
           <button type="button" class="bd-save" onclick="bdSave('{{ section.id }}','{{ block.id }}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save</button>
         </div>
       </div>
       {% endif %}{% endfor %}
+    </div>
+    <div class="bd-price-bar">
+      <span class="bd-price-bar__val" id="BDPrice-{{ section.id }}">$0.00</span>
+      <div class="bd-price-bar__meta">
+        <span id="BDItems-{{ section.id }}">0 items</span>
+        <span class="bd-art-badge" id="BDArtBadge-{{ section.id }}">No artwork</span>
+      </div>
     </div>
 
     <button type="button" class="bd-atc" id="BDAddBtn-{{ section.id }}" onclick="bdAddToCart('{{ section.id }}')">Add Bundle to Cart</button>
@@ -1477,6 +1479,7 @@
     }
     
     try{
+      /* Add all items to cart */
       for(var i=0;i<items.length;i++){
         var it=items[i];
         var fd=new FormData();
@@ -1503,22 +1506,139 @@
       btn.textContent='Added to Cart!';
       setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2500);
       
-      try{
-        var r=await fetch(window.Shopify.routes.root+'cart.js');
-        var cart=await r.json();
-        var dr=document.querySelector('cart-drawer'),no=document.querySelector('cart-notification');
-        if(dr&&dr.renderContents)dr.renderContents(cart);
-        else if(no&&no.renderContents){no.renderContents(cart);no.open();}
-        document.querySelectorAll('a[href="/cart"],.header__icon--cart,#cart-icon-bubble').forEach(function(ic){if(ic.offsetParent!==null)ic.click();});
-        document.documentElement.dispatchEvent(new CustomEvent('cart:refresh',{bubbles:true,detail:{cart:cart}}));
-      }catch(e){}
+      /* ROBUST CART REFRESH - Multiple methods with fallbacks */
+      await refreshCart();
+      
     }catch(err){
       console.error('Bundle error:',err);
-      alert('Something went wrong.');
+      alert('Something went wrong adding to cart.');
       btn.textContent=orig;
       btn.disabled=false;
     }
   };
+
+  /* Comprehensive cart refresh function with multiple fallback methods */
+  async function refreshCart() {
+    try {
+      /* Method 1: Fetch updated cart data */
+      var response = await fetch(window.Shopify.routes.root + 'cart.js');
+      var cart = await response.json();
+      
+      console.log('Cart refreshed:', cart);
+      
+      /* Method 2: Try cart-drawer (Dawn theme and similar) */
+      var cartDrawer = document.querySelector('cart-drawer');
+      if (cartDrawer) {
+        console.log('Found cart-drawer element');
+        if (typeof cartDrawer.renderContents === 'function') {
+          cartDrawer.renderContents(cart);
+          console.log('cart-drawer.renderContents called');
+        }
+        /* Try to open the drawer */
+        if (typeof cartDrawer.open === 'function') {
+          cartDrawer.open();
+          console.log('cart-drawer.open called');
+        } else {
+          cartDrawer.classList.add('active', 'is-open');
+          cartDrawer.setAttribute('open', '');
+        }
+      }
+      
+      /* Method 3: Try cart-notification */
+      var cartNotification = document.querySelector('cart-notification');
+      if (cartNotification) {
+        console.log('Found cart-notification element');
+        if (typeof cartNotification.renderContents === 'function') {
+          cartNotification.renderContents(cart);
+          console.log('cart-notification.renderContents called');
+        }
+        if (typeof cartNotification.open === 'function') {
+          cartNotification.open();
+          console.log('cart-notification.open called');
+        }
+      }
+      
+      /* Method 4: Try ajax-cart (some themes) */
+      if (window.theme && typeof window.theme.cart !== 'undefined') {
+        console.log('Found theme.cart');
+        if (typeof window.theme.cart.getCart === 'function') {
+          window.theme.cart.getCart();
+          console.log('theme.cart.getCart called');
+        }
+      }
+      
+      /* Method 5: Trigger custom events that themes might listen to */
+      document.documentElement.dispatchEvent(new CustomEvent('cart:refresh', {
+        bubbles: true,
+        detail: { cart: cart }
+      }));
+      
+      document.documentElement.dispatchEvent(new CustomEvent('cart:updated', {
+        bubbles: true,
+        detail: { cart: cart }
+      }));
+      
+      window.dispatchEvent(new CustomEvent('cartUpdated', {
+        detail: { cart: cart }
+      }));
+      
+      /* Method 6: Try clicking cart icon to open drawer */
+      setTimeout(function() {
+        var cartSelectors = [
+          'a[href="/cart"]',
+          '.header__icon--cart',
+          '#cart-icon-bubble',
+          '[data-cart-icon]',
+          '.cart-icon',
+          '.header-cart-btn',
+          '[data-ajax-cart-trigger]',
+          '.js-cart-drawer-toggle',
+          '.cart-link',
+          '[data-cart-drawer-toggle]'
+        ];
+        
+        for (var i = 0; i < cartSelectors.length; i++) {
+          var icons = document.querySelectorAll(cartSelectors[i]);
+          for (var j = 0; j < icons.length; j++) {
+            if (icons[j].offsetParent !== null) {
+              console.log('Clicking cart icon:', cartSelectors[i]);
+              icons[j].click();
+              return; // Exit after first successful click
+            }
+          }
+        }
+      }, 100);
+      
+      /* Method 7: Update cart count bubbles */
+      updateCartCount(cart.item_count);
+      
+    } catch (error) {
+      console.error('Error refreshing cart:', error);
+    }
+  }
+
+  /* Update all cart count indicators on the page */
+  function updateCartCount(count) {
+    var countSelectors = [
+      '.cart-count',
+      '.cart-count-bubble',
+      '[data-cart-count]',
+      '.header__icon--cart .icon__badge',
+      '#cart-icon-bubble span',
+      '.cart__count'
+    ];
+    
+    countSelectors.forEach(function(selector) {
+      var elements = document.querySelectorAll(selector);
+      elements.forEach(function(el) {
+        el.textContent = count;
+        if (count > 0) {
+          el.classList.remove('hidden');
+          el.style.display = '';
+        }
+      });
+    });
+  }
 
   /* ====================================================================
      INIT
