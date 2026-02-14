@@ -1,0 +1,1508 @@
+{% comment %}
+  ============================================================
+  Bundle Product Designer — FIXED with Multi-Color Memory
+  ============================================================
+  NEW FEATURES ADDED:
+  ✓ Multi-color selection memory (quantities persist per color)
+  ✓ Per-color artwork memory (each color has unique artwork)
+  ✓ Color badges on upload sections
+  ✓ Artwork summary panel
+  ✓ Selection summary panel
+  ✓ Save/restore functionality when switching colors
+  ============================================================
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "Bundle Product Designer",
+  "settings": [
+    { "type":"text","id":"bundle_title","label":"Bundle Title","default":"Custom Uniform Bundle" },
+    { "type":"richtext","id":"bundle_description","label":"Bundle Description","default":"<p>Select products, choose colours & sizes, upload artwork, and we'll handle the rest.</p>" },
+    { "type":"image_picker","id":"bundle_image","label":"Bundle Hero Image (default left panel)" },
+    { "type":"color","id":"accent_color","label":"Accent / Brand Colour","default":"#16a34a" },
+    { "type":"color","id":"box_border","label":"Print-Area Border Colour","default":"#3b82f6" },
+    { "type":"header","content":"Print Area 1" },
+    { "type":"text","id":"print_area_1_label","label":"Label","default":"Left Chest Print" },
+    { "type":"range","id":"pa1_top","min":0,"max":90,"step":1,"unit":"%","label":"Top","default":22 },
+    { "type":"range","id":"pa1_left","min":0,"max":90,"step":1,"unit":"%","label":"Left","default":28 },
+    { "type":"range","id":"pa1_width","min":5,"max":80,"step":1,"unit":"%","label":"Width","default":44 },
+    { "type":"range","id":"pa1_height","min":5,"max":80,"step":1,"unit":"%","label":"Height","default":46 },
+    { "type":"header","content":"Print Area 2" },
+    { "type":"text","id":"print_area_2_label","label":"Label","default":"Back Print" },
+    { "type":"range","id":"pa2_top","min":0,"max":90,"step":1,"unit":"%","label":"Top","default":18 },
+    { "type":"range","id":"pa2_left","min":0,"max":90,"step":1,"unit":"%","label":"Left","default":22 },
+    { "type":"range","id":"pa2_width","min":5,"max":80,"step":1,"unit":"%","label":"Width","default":56 },
+    { "type":"range","id":"pa2_height","min":5,"max":80,"step":1,"unit":"%","label":"Height","default":54 },
+    { "type":"range","id":"max_qty_per_product","min":1,"max":50,"step":1,"label":"Max Qty per Size","default":20 }
+  ],
+  "blocks": [
+    {
+      "type":"product","name":"Bundle Product","limit":5,
+      "settings":[
+        { "type":"product","id":"product","label":"Product" },
+        { "type":"checkbox","id":"enable_print_area_1","label":"Enable Print Area 1","default":true },
+        { "type":"checkbox","id":"enable_print_area_2","label":"Enable Print Area 2","default":true }
+      ]
+    }
+  ],
+  "presets":[{ "name":"Bundle Product Designer","blocks":[{"type":"product"},{"type":"product"},{"type":"product"}] }]
+}
+{% endschema %}
+
+{%- assign ac  = section.settings.accent_color -%}
+{%- assign bb  = section.settings.box_border -%}
+{%- assign mq  = section.settings.max_qty_per_product -%}
+
+<!-- ===========================  HTML  =========================== -->
+<section class="bd" id="BD-{{ section.id }}">
+<div class="bd-split">
+
+  <!-- ============ LEFT PANEL ============ -->
+  <div class="bd-left">
+    <div class="bd-left__sticky">
+      <div class="bd-img-box" id="BDBox-{{ section.id }}">
+
+        {%- comment -%} Main product image {%- endcomment -%}
+        {% if section.settings.bundle_image %}
+          <img id="BDMainImg-{{ section.id }}" class="bd-main-img" loading="eager"
+               src="{{ section.settings.bundle_image | image_url: width: 900 }}"
+               alt="{{ section.settings.bundle_title | escape }}">
+        {% else %}
+          {%- for block in section.blocks -%}{%- assign fp = block.settings.product -%}
+            {%- if fp != blank and fp.featured_image -%}
+              <img id="BDMainImg-{{ section.id }}" class="bd-main-img" loading="eager"
+                   src="{{ fp.featured_image | image_url: width: 900 }}"
+                   alt="{{ fp.title | escape }}">{%- break -%}
+            {%- endif -%}
+          {%- endfor -%}
+        {% endif %}
+
+        <span class="bd-img-tag" id="BDTag-{{ section.id }}">{{ section.settings.bundle_title }}</span>
+
+        {%- comment -%} ---- PRINT AREA 1 OVERLAY ---- {%- endcomment -%}
+        {% if section.settings.print_area_1_label != blank %}
+        <div id="BDArea1-{{ section.id }}" class="bd-area"
+             style="top:{{ section.settings.pa1_top }}%;left:{{ section.settings.pa1_left }}%;width:{{ section.settings.pa1_width }}%;height:{{ section.settings.pa1_height }}%;display:none;">
+          <div class="bd-ph" id="BDPh1-{{ section.id }}" onclick="bdTriggerUpload('{{ section.id }}',1)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>{{ section.settings.print_area_1_label }}</span>
+          </div>
+          <div id="BDWrap1-{{ section.id }}" class="bd-wrap" style="display:none;">
+            <img id="BDPrev1-{{ section.id }}" class="bd-prev-img" src="" alt="">
+            <span class="bd-rh tl" data-corner="tl"></span><span class="bd-rh tr" data-corner="tr"></span>
+            <span class="bd-rh bl" data-corner="bl"></span><span class="bd-rh br" data-corner="br"></span>
+            <span class="bd-rot" title="Rotate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span>
+            <button type="button" class="bd-del" title="Remove" onclick="bdOverlayRemove('{{ section.id }}',1)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </div>
+        {% endif %}
+
+        {%- comment -%} ---- PRINT AREA 2 OVERLAY ---- {%- endcomment -%}
+        {% if section.settings.print_area_2_label != blank %}
+        <div id="BDArea2-{{ section.id }}" class="bd-area"
+             style="top:{{ section.settings.pa2_top }}%;left:{{ section.settings.pa2_left }}%;width:{{ section.settings.pa2_width }}%;height:{{ section.settings.pa2_height }}%;display:none;">
+          <div class="bd-ph" id="BDPh2-{{ section.id }}" onclick="bdTriggerUpload('{{ section.id }}',2)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>{{ section.settings.print_area_2_label }}</span>
+          </div>
+          <div id="BDWrap2-{{ section.id }}" class="bd-wrap" style="display:none;">
+            <img id="BDPrev2-{{ section.id }}" class="bd-prev-img" src="" alt="">
+            <span class="bd-rh tl" data-corner="tl"></span><span class="bd-rh tr" data-corner="tr"></span>
+            <span class="bd-rh bl" data-corner="bl"></span><span class="bd-rh br" data-corner="br"></span>
+            <span class="bd-rot" title="Rotate"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg></span>
+            <button type="button" class="bd-del" title="Remove" onclick="bdOverlayRemove('{{ section.id }}',2)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+
+      <p class="bd-tip" id="BDTip-{{ section.id }}" style="display:none;">Drag to move · Corner handles to resize · Top handle to rotate</p>
+
+      {% comment %} <!-- Area tabs --> {% endcomment %}
+      <div class="bd-pa-tabs" id="BDPATabs-{{ section.id }}" style="display:none;">
+        <p class="bd-pa-tabs__title">Print Area: <strong id="BDPALbl-{{ section.id }}">{{ section.settings.print_area_1_label }}</strong></p>
+        <div class="bd-pa-tabs__row">
+          {% if section.settings.print_area_1_label != blank %}
+          <div class="bd-tab bd-tab--on" data-area="1" onclick="bdSwitchArea('{{ section.id }}',1)">
+            <div class="bd-tab__chk"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="bd-tab__prev" id="BDTabPrev1-{{ section.id }}">
+              <svg class="bd-tab__ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <img class="bd-tab__img" id="BDTabThumb1-{{ section.id }}" src="" style="display:none;">
+            </div>
+            <span class="bd-tab__lbl">{{ section.settings.print_area_1_label }}</span>
+          </div>
+          {% endif %}
+          {% if section.settings.print_area_2_label != blank %}
+          <div class="bd-tab" data-area="2" onclick="bdSwitchArea('{{ section.id }}',2)">
+            <div class="bd-tab__chk"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="4"><polyline points="20 6 9 17 4 12"/></svg></div>
+            <div class="bd-tab__prev" id="BDTabPrev2-{{ section.id }}">
+              <svg class="bd-tab__ico" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <img class="bd-tab__img" id="BDTabThumb2-{{ section.id }}" src="" style="display:none;">
+            </div>
+            <span class="bd-tab__lbl">{{ section.settings.print_area_2_label }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ RIGHT PANEL ============ -->
+  <div class="bd-right">
+    <h1 class="bd-title">{{ section.settings.bundle_title }}</h1>
+    <div class="bd-desc">{{ section.settings.bundle_description }}</div>
+
+    <div class="bd-price-bar">
+      <span class="bd-price-bar__val" id="BDPrice-{{ section.id }}">$0.00</span>
+      <div class="bd-price-bar__meta">
+        <span id="BDItems-{{ section.id }}">0 items</span>
+        <span class="bd-art-badge" id="BDArtBadge-{{ section.id }}">No artwork</span>
+      </div>
+    </div>
+
+    <!-- Artwork upload (Front) -->
+    <div class="bd-upload-section" id="BDUpSec1-{{ section.id }}" style="display:none;">
+      <label class="bd-opt-label">
+        1. Upload Artwork (Front)
+        <span class="bd-color-badge" id="BDUpBadge1-{{ section.id }}"></span>
+      </label>
+      <div class="bd-file-group">
+        <label for="BDFile1-{{ section.id }}" class="bd-file-box" id="BDDrop1-{{ section.id }}">
+          <span id="BDName1-{{ section.id }}">Click To Upload Image</span>
+        </label>
+        <input type="file" id="BDFile1-{{ section.id }}" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="bdUpload(event,'{{ section.id }}',1)">
+        <p class="bd-file-hint">Accepted: PNG, JPG, SVG, WebP</p>
+      </div>
+    </div>
+
+    <!-- Artwork upload (Back) — hidden until Back View -->
+    <div class="bd-upload-section" id="BDUpSec2-{{ section.id }}" style="display:none;">
+      <label class="bd-opt-label">
+        2. Upload Artwork (Back)
+        <span class="bd-color-badge" id="BDUpBadge2-{{ section.id }}"></span>
+      </label>
+      <div class="bd-file-group">
+        <label for="BDFile2-{{ section.id }}" class="bd-file-box" id="BDDrop2-{{ section.id }}">
+          <span id="BDName2-{{ section.id }}">Click To Upload Image</span>
+        </label>
+        <input type="file" id="BDFile2-{{ section.id }}" accept="image/png,image/jpeg,image/svg+xml,image/webp" style="display:none" onchange="bdUpload(event,'{{ section.id }}',2)">
+        <p class="bd-file-hint">Accepted: PNG, JPG, SVG, WebP</p>
+      </div>
+    </div>
+
+    <!-- NEW: Artwork Summary (shows which colors have artwork) -->
+    <div id="BDArtworkSummary-{{ section.id }}" class="bd-artwork-summary" style="display:none;">
+      <label class="bd-opt-label">Artwork per Color</label>
+      <div id="BDArtworkList-{{ section.id }}" class="bd-artwork-list"></div>
+    </div>
+
+    <!-- Front / Back View Toggle -->
+    <div class="bd-view-toggle" id="BDViewToggle-{{ section.id }}" style="display:none;">
+      <button type="button" class="bd-view-btn active" onclick="bdSwitchView('{{ section.id }}','front',this)">Front View</button>
+      <button type="button" class="bd-view-btn" onclick="bdSwitchView('{{ section.id }}','back',this)">Back View</button>
+    </div>
+
+    <!-- Product cards -->
+    <div class="bd-cards">
+      {% for block in section.blocks %}{%- assign bp = block.settings.product -%}{% if bp != blank %}
+      <div class="bd-card" id="BDCard-{{ block.id }}" {{ block.shopify_attributes }}>
+        <div class="bd-card__row" onclick="bdToggle('{{ section.id }}','{{ block.id }}')">
+          <div class="bd-card__thumb">{% if bp.featured_image %}<img src="{{ bp.featured_image | image_url: width: 120 }}" alt="{{ bp.title | escape }}" id="BDCThumb-{{ block.id }}">{% else %}<div class="bd-card__th-ph"></div>{% endif %}</div>
+          <div class="bd-card__info">
+            <h3 class="bd-card__name">{{ bp.title }}</h3>
+            <div class="bd-card__tags"><span class="bd-tag bd-tag--qty" id="BDTgQ-{{ block.id }}">0 Selected</span><span class="bd-tag bd-tag--art" id="BDTgA-{{ block.id }}">No artwork</span></div>
+          </div>
+          <button type="button" class="bd-card__btn" id="BDBtn-{{ block.id }}">Edit</button>
+        </div>
+        <div class="bd-card__panel" id="BDPanel-{{ block.id }}" style="display:none">
+          {% for option in bp.options_with_values %}{% if option.name == 'Color' or option.name == 'Colour' %}
+          <div class="bd-grp">
+            <label class="bd-lbl">Colour: <strong id="BDClrLbl-{{ block.id }}">{{ option.selected_value }}</strong></label>
+            <div class="bd-swatches">
+              {% for value in option.values %}
+                {%- assign sw_img = nil -%}{%- assign sw_lg = nil -%}
+                {%- for v in bp.variants -%}{%- if v.options contains value and v.featured_media -%}{%- assign sw_img = v.featured_media | image_url: width: 80 -%}{%- assign sw_lg = v.featured_media | image_url: width: 900 -%}{%- break -%}{%- endif -%}{%- endfor -%}
+              <div class="bd-sw {% if option.selected_value == value %}selected{% endif %}" data-value="{{ value | escape }}" data-oidx="{{ forloop.parentloop.index0 }}" data-lg="{% if sw_lg %}{{ sw_lg }}{% endif %}" onclick="bdSwatch(this,'{{ section.id }}','{{ block.id }}')">
+                <span class="bd-sw__dot" style="{% if sw_img %}background-image:url('{{ sw_img }}');background-size:cover;background-position:center;{% else %}background-color:{{ value | split: ' ' | last | handle }};{% endif %}"></span>
+                <span class="bd-sw__tip">{{ value }}</span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+          {% for option in bp.options_with_values %}{% if option.name == 'Size' or option.name == 'Sizes' %}
+          <div class="bd-grp">
+            <label class="bd-lbl">Sizes & Qty <span class="bd-sub">(max {{ mq }})</span></label>
+            <div class="bd-sizes">
+              {% for value in option.values %}
+              <div class="bd-sz">
+                <input type="number" min="0" max="{{ mq }}" placeholder="0" class="bd-sz__in" data-bid="{{ block.id }}" data-oidx="{{ forloop.parentloop.index0 }}" data-val="{{ value | escape }}" oninput="bdQtyChange('{{ section.id }}','{{ block.id }}')">
+                <span class="bd-sz__lbl">{{ value }}</span>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}{% endfor %}
+
+          <!-- NEW: Selection Summary for this product -->
+          <div id="BDSelSum-{{ block.id }}" class="bd-selection-summary" style="display:none;">
+            <label class="bd-lbl">Your Selections</label>
+            <div id="BDSelList-{{ block.id }}" class="bd-selection-list"></div>
+          </div>
+
+          {% if block.settings.enable_print_area_1 or block.settings.enable_print_area_2 %}
+          <div class="bd-grp">
+            <label class="bd-lbl">Print Areas</label>
+            <div class="bd-checks">
+              {% if block.settings.enable_print_area_1 %}<label class="bd-chk"><input type="checkbox" checked data-area="1" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_1_label }}</label>{% endif %}
+              {% if block.settings.enable_print_area_2 %}<label class="bd-chk"><input type="checkbox" checked data-area="2" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_2_label }}</label>{% endif %}
+            </div>
+          </div>
+          {% endif %}
+          <button type="button" class="bd-save" onclick="bdSave('{{ section.id }}','{{ block.id }}')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Save</button>
+        </div>
+      </div>
+      {% endif %}{% endfor %}
+    </div>
+
+    <button type="button" class="bd-atc" id="BDAddBtn-{{ section.id }}" onclick="bdAddToCart('{{ section.id }}')">Add Bundle to Cart</button>
+  </div>
+</div>
+</section>
+
+<!-- ===========================  STYLES  =========================== -->
+<style>
+#BD-{{ section.id }}{
+  --ac:{{ ac }};--bb:{{ bb }};--r:8px;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  max-width:1200px;margin:40px auto;padding:0 20px;
+}
+/* layout */
+.bd-split{display:flex;gap:32px;align-items:flex-start}
+.bd-left{width:50%;flex-shrink:0}.bd-right{width:50%;min-width:0}
+.bd-left__sticky{position:sticky;top:24px}
+.bd-img-box{position:relative;width:100%;background:#f5f5f5;border-radius:var(--r);overflow:visible;min-height:300px}
+.bd-main-img{width:100%;display:block;aspect-ratio:1/1;object-fit:contain;background:#f5f5f5;border-radius:var(--r);transition:opacity .15s ease}
+.bd-img-tag{position:absolute;bottom:12px;left:12px;background:rgba(0,0,0,.6);color:#fff;font-size:12px;font-weight:600;padding:4px 10px;border-radius:4px;pointer-events:none;max-width:80%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;z-index:15}
+.bd-tip{text-align:center;font-size:11px;color:#999;margin:8px 0 2px}
+
+/* === PRINT-AREA OVERLAY === */
+.bd-area{position:absolute;border:2px dashed var(--bb);background:{{ bb | color_modify: 'alpha', 0.06 }};display:none;align-items:center;justify-content:center;overflow:visible;z-index:5;transition:opacity .25s}
+.bd-area--on{display:flex}
+.bd-ph{text-align:center;color:var(--bb);font-weight:600;font-size:11px;pointer-events:auto;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%;height:100%;border-radius:4px;transition:background .2s,transform .15s}
+.bd-ph:hover{background:{{ bb | color_modify: 'alpha', 0.10 }};transform:scale(1.02)}
+.bd-ph:active{transform:scale(.98)}
+.bd-ph svg{stroke:var(--bb);opacity:.6;transition:opacity .2s}.bd-ph:hover svg{opacity:1}
+
+/* wrapper (drag target) */
+.bd-wrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(0deg);cursor:grab;z-index:10;touch-action:none;user-select:none;-webkit-user-select:none}
+.bd-wrap:active{cursor:grabbing}
+.bd-prev-img{width:100%;height:100%;display:block;pointer-events:none;-webkit-user-drag:none}
+.bd-wrap.selected{outline:2px solid var(--bb);outline-offset:2px}
+/* handles hidden until selected */
+.bd-wrap .bd-rh,.bd-wrap .bd-rot,.bd-wrap .bd-del{opacity:0;pointer-events:none;transition:opacity .15s}
+.bd-wrap.selected .bd-rh,.bd-wrap.selected .bd-rot,.bd-wrap.selected .bd-del{opacity:1;pointer-events:auto}
+/* corner resize */
+.bd-rh{position:absolute;width:14px;height:14px;background:#fff;border:2px solid var(--bb);border-radius:3px;z-index:20}
+.bd-rh.tl{top:-7px;left:-7px;cursor:nwse-resize}.bd-rh.tr{top:-7px;right:-7px;cursor:nesw-resize}
+.bd-rh.bl{bottom:-7px;left:-7px;cursor:nesw-resize}.bd-rh.br{bottom:-7px;right:-7px;cursor:nwse-resize}
+/* rotate */
+.bd-rot{position:absolute;top:-32px;left:50%;transform:translateX(-50%);width:24px;height:24px;border-radius:50%;background:var(--bb);display:flex;align-items:center;justify-content:center;cursor:grab;z-index:20;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.bd-rot::before{content:'';position:absolute;top:100%;left:50%;width:2px;height:8px;background:var(--bb);transform:translateX(-50%)}
+/* remove */
+.bd-del{position:absolute;top:-10px;right:-10px;width:22px;height:22px;border-radius:50%;background:#ef4444;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:25;box-shadow:0 1px 4px rgba(0,0,0,.25)}
+.bd-del:hover{background:#dc2626}
+/* angle tooltip */
+.bd-ang{position:absolute;top:-56px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.75);color:#fff;font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap;pointer-events:none;display:none}
+.bd-wrap.rotating .bd-ang{display:block}
+
+/* area tabs */
+.bd-pa-tabs{margin-top:12px}
+.bd-pa-tabs__title{font-size:13px;color:#555;margin:0 0 6px}
+.bd-pa-tabs__row{display:flex;gap:10px}
+.bd-tab{flex:1;border:2px solid #ddd;border-radius:var(--r);padding:8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:5px;transition:border-color .2s,background .2s;position:relative}
+.bd-tab--on{border-color:var(--ac);background:{{ ac | color_modify: 'alpha', 0.06 }}}
+.bd-tab__chk{position:absolute;top:6px;right:6px;width:18px;height:18px;border-radius:50%;background:#d1d5db;display:flex;align-items:center;justify-content:center;transition:background .2s}
+.bd-tab--on .bd-tab__chk{background:var(--ac)}
+.bd-tab__prev{width:44px;height:44px;border-radius:4px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.bd-tab__ico{color:#aaa}.bd-tab__img{width:100%;height:100%;object-fit:cover}
+.bd-tab__lbl{font-size:11px;font-weight:600;color:#555;text-align:center}
+
+/* right panel */
+.bd-title{font-size:24px;font-weight:800;margin:0 0 6px;line-height:1.2}
+.bd-desc{font-size:14px;color:#555;margin-bottom:16px;line-height:1.5}.bd-desc p{margin:0}
+.bd-price-bar{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:var(--r);margin-bottom:16px}
+.bd-price-bar__val{font-size:24px;font-weight:800;color:var(--ac)}
+.bd-price-bar__meta{text-align:right;font-size:12px;color:#555;display:flex;flex-direction:column;gap:2px}
+.bd-art-badge{font-size:11px;font-weight:700;color:#ef4444}.bd-art-badge.ok{color:var(--ac)}
+/* upload section (front/back) */
+.bd-upload-section{margin-bottom:12px}
+.bd-opt-label{display:block;font-weight:bold;margin-bottom:8px;font-size:14px;color:#333}
+.bd-color-badge{display:inline-block;font-size:11px;font-weight:600;background:#e8e8ff;color:#5b5fc7;padding:2px 8px;border-radius:10px;margin-left:6px;vertical-align:middle}
+.bd-color-badge:empty{display:none}
+.bd-file-group{margin-bottom:4px}
+.bd-file-box{display:block;width:100%;padding:18px;border:2px dashed #ccc;text-align:center;cursor:pointer;border-radius:6px;font-weight:bold;color:#555;background:#fafafa;transition:border-color .2s,background .2s}
+.bd-file-box:hover{border-color:#999;background:#f0f0f0}
+.bd-file-box.has{border-color:var(--ac);border-style:solid;background:#f0fdf4;color:var(--ac)}
+.bd-file-hint{font-size:11px;color:#9ca3af;margin:4px 0 0;text-align:center}
+
+/* NEW: Artwork Summary */
+.bd-artwork-summary{margin:15px 0}
+.bd-artwork-list{display:flex;flex-direction:column;gap:5px}
+.bd-artwork-row{display:flex;align-items:center;gap:8px;padding:7px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:12px}
+.bd-artwork-row .art-color{font-weight:700;min-width:60px}
+.bd-artwork-row .art-sides{flex:1;color:#166534}
+.bd-artwork-row .art-thumb{width:28px;height:28px;border-radius:4px;object-fit:cover;border:1px solid #d1d5db;flex-shrink:0}
+.bd-artwork-row .art-remove{width:18px;height:18px;border:none;background:none;cursor:pointer;color:#9ca3af;display:flex;align-items:center;justify-content:center;padding:0;border-radius:50%;transition:color .15s;flex-shrink:0}
+.bd-artwork-row .art-remove:hover{color:#dc2626}
+
+/* NEW: Selection Summary */
+.bd-selection-summary{margin:14px 0}
+.bd-selection-list{display:flex;flex-direction:column;gap:6px}
+.bd-selection-row{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;font-size:13px;gap:8px}
+.bd-selection-row .sel-color{font-weight:600}
+.bd-selection-row .sel-details{flex:1;color:#555}
+.bd-selection-row .sel-qty{font-weight:700;min-width:30px;text-align:right}
+.bd-selection-row .sel-remove{width:20px;height:20px;border:none;background:none;cursor:pointer;color:#9ca3af;display:flex;align-items:center;justify-content:center;padding:0;border-radius:50%;transition:color .15s,background .15s;flex-shrink:0}
+.bd-selection-row .sel-remove:hover{color:#ef4444;background:#fef2f2}
+
+/* view toggle */
+.bd-view-toggle{display:flex;gap:10px;margin:15px 0;justify-content:center}
+.bd-view-btn{flex:1;padding:10px 20px;background:#fff;border:2px solid #ddd;border-radius:6px;cursor:pointer;font-weight:600;font-size:14px;transition:all .15s}
+.bd-view-btn.active{background:#000;color:#fff;border-color:#000}
+.bd-view-btn:hover:not(.active){background:#f5f5f5}
+/* labels */
+.bd-lbl{font-size:13px;font-weight:700;margin-bottom:8px;display:block;color:#333}.bd-sub{font-weight:400;color:#999}
+.bd-cards{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.bd-card{background:#fff;border:2px solid #e5e7eb;border-radius:var(--r);overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.bd-card.active{border-color:var(--ac);box-shadow:0 0 0 3px {{ ac | color_modify: 'alpha', 0.12 }}}
+.bd-card.saved{border-color:#bbf7d0}
+.bd-card__row{display:flex;align-items:center;gap:12px;padding:10px 14px;cursor:pointer;user-select:none;transition:background .15s}
+.bd-card__row:hover{background:#f9fafb}
+.bd-card__thumb{width:56px;height:56px;border-radius:6px;overflow:hidden;flex-shrink:0;background:#f3f4f6}
+.bd-card__thumb img{width:100%;height:100%;object-fit:cover}
+.bd-card__th-ph{width:100%;height:100%;background:#e5e7eb}
+.bd-card__info{flex:1;min-width:0}
+.bd-card__name{font-size:14px;font-weight:700;margin:0 0 4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bd-card__tags{display:flex;gap:6px;flex-wrap:wrap}
+.bd-tag{font-size:10px;font-weight:700;padding:2px 8px;border-radius:12px;text-transform:uppercase}
+.bd-tag--qty{background:#fef3c7;color:#92400e}.bd-tag--qty.ok{background:#dcfce7;color:#166534}
+.bd-tag--art{background:#fee2e2;color:#991b1b}.bd-tag--art.ok{background:#dcfce7;color:#166534}
+.bd-card__btn{flex-shrink:0;padding:6px 14px;border-radius:6px;border:none;font-size:12px;font-weight:700;cursor:pointer;background:#1a1a1a;color:#fff;transition:background .15s}
+.bd-card__btn:hover{background:#333}.bd-card__btn.done{background:var(--ac)}
+.bd-card__panel{padding:14px;border-top:1px solid #e5e7eb}
+.bd-grp{margin-bottom:14px}
+.bd-swatches{display:flex;gap:7px;flex-wrap:wrap}
+.bd-sw{width:34px;height:34px;border-radius:50%;border:2px solid #ddd;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .15s,border-color .15s}
+.bd-sw:hover{transform:scale(1.1)}.bd-sw.selected{border-color:var(--ac);transform:scale(1.15);box-shadow:0 0 0 2px var(--ac)}
+.bd-sw__dot{width:26px;height:26px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.08);overflow:hidden}
+.bd-sw__tip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:9px;padding:3px 6px;border-radius:4px;white-space:nowrap;opacity:0;pointer-events:none;margin-bottom:5px;transition:opacity .15s}
+.bd-sw:hover .bd-sw__tip{opacity:1}
+.bd-sizes{display:flex;gap:8px;flex-wrap:wrap}
+.bd-sz{display:flex;flex-direction:column;align-items:center;width:58px}
+.bd-sz__in{width:100%;height:38px;text-align:center;border:2px solid #e5e7eb;border-radius:6px;font-size:14px;font-weight:600;transition:border-color .15s;-moz-appearance:textfield}
+.bd-sz__in::-webkit-outer-spin-button,.bd-sz__in::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.bd-sz__in:focus{outline:none;border-color:var(--ac)}.bd-sz__in:disabled{opacity:.35;cursor:not-allowed}
+.bd-sz__lbl{font-size:11px;font-weight:600;color:#555;margin-top:3px}
+.bd-checks{display:flex;gap:14px;flex-wrap:wrap}
+.bd-chk{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px}
+.bd-chk input{display:none}
+.bd-chk__box{width:20px;height:20px;border:2px solid #ccc;border-radius:4px;display:flex;align-items:center;justify-content:center;transition:all .15s;position:relative}
+.bd-chk__box::after{content:'';width:10px;height:10px;border-radius:2px;background:var(--ac);transform:scale(0);transition:transform .15s}
+.bd-chk input:checked+.bd-chk__box{border-color:var(--ac)}.bd-chk input:checked+.bd-chk__box::after{transform:scale(1)}
+.bd-save{display:flex;align-items:center;gap:6px;justify-content:center;width:100%;padding:10px;border:none;border-radius:6px;background:var(--ac);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:opacity .15s}
+.bd-save:hover{opacity:.9}
+.bd-atc{display:block;width:100%;padding:16px;border:none;border-radius:var(--r);background:#111;color:#fff;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;cursor:pointer;transition:background .15s}
+.bd-atc:hover{background:#333}.bd-atc:disabled{background:#777;cursor:not-allowed}
+@media(max-width:768px){
+  .bd-split{flex-direction:column;gap:20px}
+  .bd-left,.bd-right{width:100%}
+  .bd-left__sticky{position:static}
+  .bd-main-img{aspect-ratio:4/3}
+  .bd-title{font-size:20px}
+  .bd-rh{width:18px;height:18px}.bd-rh.tl{top:-9px;left:-9px}.bd-rh.tr{top:-9px;right:-9px}.bd-rh.bl{bottom:-9px;left:-9px}.bd-rh.br{bottom:-9px;right:-9px}
+  .bd-rot{width:28px;height:28px;top:-36px}
+}
+</style>
+
+<!-- ===========================  JAVASCRIPT  =========================== -->
+<script>
+(function(){
+  'use strict';
+  var S='{{ section.id }}', MQ={{ mq }}, CUR='{{ cart.currency.iso_code }}';
+
+  /* === Block data === */
+  var B={
+    {% for block in section.blocks %}{%- assign bp = block.settings.product -%}{% if bp != blank %}
+    '{{ block.id }}':{
+      t:'{{ bp.title | escape }}',
+      fi:'{% if bp.featured_image %}{{ bp.featured_image | image_url: width: 900 }}{% endif %}',
+      vs:[{% for v in bp.variants %}{id:{{ v.id }},p:{{ v.price }},a:{{ v.available }},o:[{% for o in v.options %}"{{ o | escape }}"{% unless forloop.last %},{% endunless %}{% endfor %}],img:"{% if v.featured_media %}{{ v.featured_media | image_url: width: 900 }}{% endif %}"}{% unless forloop.last %},{% endunless %}{% endfor %}],
+      co:[{% for o in bp.selected_or_first_available_variant.options %}"{{ o | escape }}"{% unless forloop.last %},{% endunless %}{% endfor %}],
+      ss:{},       /* NEW: savedSelections per color */
+      sa:{},       /* NEW: savedArtwork per color */
+      pa:[{% if block.settings.enable_print_area_1 %}1{% endif %}],
+      done:false
+    }{% unless forloop.last %},{% endunless %}{% endif %}
+  {% endfor %}};
+
+  /* Shared artwork uploads (global files) — but per-color variants */
+  var globalArtwork = {
+    1: {},  /* area 1: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
+    2: {}   /* area 2: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
+  };
+
+  /* Per-product overlay positions:  prodPos[bid][areaNum] = {left,top,width,height,rotation} | null */
+  var prodPos={};
+  Object.keys(B).forEach(function(bid){prodPos[bid]={1:null,2:null};});
+
+  var expB=null;      /* currently expanded block id */
+  var activeArea=1;   /* which area tab is active (1 or 2) */
+
+  /* Per-area rotation state (live, for the currently-visible overlay) */
+  var rot={1:0,2:0};
+  
+  var VALID_IMAGE_TYPES = ['image/png','image/jpeg','image/jpg','image/svg+xml','image/webp'];
+
+  /* =================================================================
+     HELPER FUNCTIONS
+     ================================================================= */
+  function escapeHtml(s) {
+    var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+  }
+  function escapeAttr(s) {
+    return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
+  }
+
+  /* =================================================================
+     GET CURRENT COLOR FOR A PRODUCT
+     ================================================================= */
+  function getCurrentColor(bid) {
+    var sw = document.querySelector('#BDCard-'+bid+' .bd-sw.selected');
+    return sw ? sw.getAttribute('data-value') : '__default__';
+  }
+
+  /* =================================================================
+     MULTI-COLOR SELECTION MEMORY (quantities)
+     ================================================================= */
+  function saveCurrentQuantities(bid) {
+    if (!bid || !B[bid]) return;
+    var color = getCurrentColor(bid);
+    var inputs = document.querySelectorAll('.bd-sz__in[data-bid="'+bid+'"]');
+    var hasAny = false;
+    var colorData = {};
+
+    inputs.forEach(function(input) {
+      var qty = parseInt(input.value);
+      if (!isNaN(qty) && qty > 0 && !input.disabled) {
+        colorData[input.getAttribute('data-val')] = qty;
+        hasAny = true;
+      }
+    });
+
+    if (hasAny) {
+      B[bid].ss[color] = colorData;
+    } else {
+      delete B[bid].ss[color];
+    }
+  }
+
+  function restoreQuantities(bid, color) {
+    if (!bid || !B[bid]) return;
+    var data = B[bid].ss[color] || {};
+    var inputs = document.querySelectorAll('.bd-sz__in[data-bid="'+bid+'"]');
+    inputs.forEach(function(input) {
+      var sizeVal = input.getAttribute('data-val');
+      if (!input.disabled && data[sizeVal]) {
+        input.value = data[sizeVal];
+      } else {
+        input.value = '';
+      }
+    });
+  }
+
+  /* Calculate total quantities for a product across all colors */
+  function getTotalQuantity(bid) {
+    if (!bid || !B[bid]) return 0;
+    var total = 0;
+    Object.keys(B[bid].ss).forEach(function(color) {
+      var sizes = B[bid].ss[color];
+      Object.keys(sizes).forEach(function(size) {
+        total += sizes[size];
+      });
+    });
+    return total;
+  }
+
+  /* Render selection summary for a specific product */
+  function renderSelectionSummary(bid) {
+    var container = document.getElementById('BDSelSum-'+bid);
+    var list = document.getElementById('BDSelList-'+bid);
+    if (!container || !list) return;
+
+    saveCurrentQuantities(bid);
+    var colors = Object.keys(B[bid].ss);
+    
+    if (colors.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+    var html = '';
+
+    colors.forEach(function(color) {
+      var sizes = B[bid].ss[color];
+      
+      /* Check if this color has artwork */
+      var hasArt = false;
+      [1, 2].forEach(function(n) {
+        if (globalArtwork[n] && globalArtwork[n][color]) hasArt = true;
+      });
+      
+      var artIcon = hasArt
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex-shrink:0;margin-right:2px" title="Artwork uploaded">' +
+          '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>'
+        : '';
+
+      Object.keys(sizes).forEach(function(size) {
+        var qty = sizes[size];
+        if (qty > 0) {
+          html += '<div class="bd-selection-row">' +
+            artIcon +
+            '<span class="sel-color">' + escapeHtml(color) + '</span>' +
+            '<span class="sel-details">' + escapeHtml(size) + ' × ' + qty + '</span>' +
+            '<button type="button" class="sel-remove" title="Remove" onclick="removeSelectionLine(\'' +
+              escapeAttr(bid) + '\',\'' + escapeAttr(color) + '\',\'' + escapeAttr(size) + '\')">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+              '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+            '</button>' +
+          '</div>';
+        }
+      });
+    });
+
+    list.innerHTML = html;
+  }
+
+  window.removeSelectionLine = function(bid, color, size) {
+    if (B[bid].ss[color]) {
+      delete B[bid].ss[color][size];
+      if (Object.keys(B[bid].ss[color]).length === 0) delete B[bid].ss[color];
+    }
+    /* If removing from currently visible color, clear that input */
+    if (color === getCurrentColor(bid)) {
+      var inputs = document.querySelectorAll('.bd-sz__in[data-bid="'+bid+'"]');
+      inputs.forEach(function(input) {
+        if (input.getAttribute('data-val') === size) input.value = '';
+      });
+    }
+    renderSelectionSummary(bid);
+    upBadge(bid);
+    upSummary();
+  };
+
+  /* =================================================================
+     PER-COLOR ARTWORK MEMORY
+     ================================================================= */
+  function getWrapState(n) {
+    var w = document.getElementById('BDWrap'+n+'-'+S);
+    if (!w || w.style.display === 'none') return null;
+    return {
+      left: w.style.left,
+      top: w.style.top,
+      width: w.style.width,
+      height: w.style.height,
+      rotation: rot[n] || 0
+    };
+  }
+
+  function setWrapState(n, st) {
+    var w = document.getElementById('BDWrap'+n+'-'+S);
+    if (!w || !st) return;
+    w.style.left = st.left;
+    w.style.top = st.top;
+    w.style.width = st.width;
+    w.style.height = st.height;
+    rot[n] = st.rotation || 0;
+    w.style.transform = 'rotate(' + rot[n] + 'deg)';
+  }
+
+  /* Save current artwork state for the active product's current color */
+  function saveCurrentArtwork(bid) {
+    if (!bid || !expB || expB !== bid) return;
+    var color = getCurrentColor(bid);
+    if (color === '__default__') return;
+
+    [1, 2].forEach(function(n) {
+      var img = document.getElementById('BDPrev'+n+'-'+S);
+      var wrap = document.getElementById('BDWrap'+n+'-'+S);
+
+      if (img && img.src && wrap && wrap.style.display !== 'none') {
+        var existing = (globalArtwork[n] && globalArtwork[n][color]) || {};
+        globalArtwork[n][color] = {
+          file: existing.file || null,
+          dataUrl: img.src,
+          fileName: existing.fileName || '',
+          wrapper: getWrapState(n)
+        };
+      } else {
+        /* No image loaded — explicitly null */
+        if (globalArtwork[n]) globalArtwork[n][color] = null;
+      }
+    });
+  }
+
+  /* Restore artwork for a specific color */
+  function restoreArtwork(bid, color) {
+    [1, 2].forEach(function(n) {
+      var wrap = document.getElementById('BDWrap'+n+'-'+S);
+      var img = document.getElementById('BDPrev'+n+'-'+S);
+      var ph = document.getElementById('BDPh'+n+'-'+S);
+      var dropBox = document.getElementById('BDDrop'+n+'-'+S);
+      var nameDisplay = document.getElementById('BDName'+n+'-'+S);
+
+      var artData = (globalArtwork[n] && globalArtwork[n][color]) || null;
+
+      if (artData && artData.dataUrl) {
+        /* Restore artwork */
+        img.onload = function() {
+          if (artData.wrapper) {
+            setWrapState(n, artData.wrapper);
+          } else {
+            /* Auto-center */
+            var area = document.getElementById('BDArea'+n+'-'+S);
+            if (area) {
+              var aW = area.offsetWidth, aH = area.offsetHeight;
+              var mxW = aW * 0.8, mxH = aH * 0.8;
+              var nW = img.naturalWidth, nH = img.naturalHeight;
+              var sc = Math.min(mxW/nW, mxH/nH, 1);
+              var w = nW * sc, h = nH * sc;
+              wrap.style.width = w + 'px';
+              wrap.style.height = h + 'px';
+              wrap.style.left = ((aW - w) / 2) + 'px';
+              wrap.style.top = ((aH - h) / 2) + 'px';
+              rot[n] = 0;
+              wrap.style.transform = 'rotate(0deg)';
+            }
+          }
+        };
+        img.src = artData.dataUrl;
+        wrap.style.display = 'block';
+        if (ph) ph.style.display = 'none';
+        if (dropBox) dropBox.classList.add('has');
+        if (nameDisplay) nameDisplay.textContent = artData.fileName || 'Custom image';
+      } else {
+        /* Clear artwork */
+        if (img) img.src = '';
+        if (wrap) {
+          wrap.style.display = 'none';
+          wrap.classList.remove('selected');
+        }
+        if (ph) ph.style.display = '';
+        if (dropBox) dropBox.classList.remove('has');
+        if (nameDisplay) nameDisplay.textContent = 'Click To Upload Image';
+        rot[n] = 0;
+      }
+    });
+  }
+
+  /* Update color badges showing current product's color */
+  function bdUpdateBadges(sid) {
+    var colorText = '';
+    if (expB) {
+      var sw = document.querySelector('#BDCard-'+expB+' .bd-sw.selected');
+      if (sw) colorText = sw.getAttribute('data-value') || '';
+    }
+    var b1 = document.getElementById('BDUpBadge1-'+sid);
+    var b2 = document.getElementById('BDUpBadge2-'+sid);
+    if (b1) b1.textContent = colorText;
+    if (b2) b2.textContent = colorText;
+  }
+
+  /* Render artwork summary showing which colors have uploads */
+  function renderArtworkSummary() {
+    var container = document.getElementById('BDArtworkSummary-'+S);
+    var list = document.getElementById('BDArtworkList-'+S);
+    if (!container || !list) return;
+
+    /* Collect all colors that have artwork */
+    var artworkByColor = {};
+    
+    [1, 2].forEach(function(n) {
+      if (!globalArtwork[n]) return;
+      Object.keys(globalArtwork[n]).forEach(function(color) {
+        var art = globalArtwork[n][color];
+        if (!art || !art.dataUrl) return;
+        
+        if (!artworkByColor[color]) {
+          artworkByColor[color] = { areas: [], thumb: art.dataUrl };
+        }
+        artworkByColor[color].areas.push(n === 1 ? '{{ section.settings.print_area_1_label | escape }}' : '{{ section.settings.print_area_2_label | escape }}');
+      });
+    });
+
+    var colors = Object.keys(artworkByColor);
+    if (colors.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+    var html = '';
+
+    colors.forEach(function(color) {
+      var data = artworkByColor[color];
+      html += '<div class="bd-artwork-row">' +
+        '<img class="art-thumb" src="' + data.thumb + '" alt="' + escapeHtml(color) + '">' +
+        '<span class="art-color">' + escapeHtml(color) + '</span>' +
+        '<span class="art-sides">' + data.areas.join(' + ') + '</span>' +
+        '<button type="button" class="art-remove" title="Remove artwork" onclick="removeColorArtwork(\'' + escapeAttr(color) + '\')">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>';
+    });
+
+    list.innerHTML = html;
+  }
+
+  window.removeColorArtwork = function(color) {
+    /* Remove from global artwork */
+    [1, 2].forEach(function(n) {
+      if (globalArtwork[n]) delete globalArtwork[n][color];
+    });
+    
+    /* If this is the current color, clear preview */
+    if (expB && color === getCurrentColor(expB)) {
+      [1, 2].forEach(function(n) {
+        var wrap = document.getElementById('BDWrap'+n+'-'+S);
+        var img = document.getElementById('BDPrev'+n+'-'+S);
+        var ph = document.getElementById('BDPh'+n+'-'+S);
+        var dropBox = document.getElementById('BDDrop'+n+'-'+S);
+        var nameDisplay = document.getElementById('BDName'+n+'-'+S);
+        
+        if (img) img.src = '';
+        if (wrap) {
+          wrap.style.display = 'none';
+          wrap.classList.remove('selected');
+        }
+        if (ph) ph.style.display = '';
+        if (dropBox) dropBox.classList.remove('has');
+        if (nameDisplay) nameDisplay.textContent = 'Click To Upload Image';
+        rot[n] = 0;
+      });
+    }
+    
+    renderArtworkSummary();
+    if (expB) {
+      renderSelectionSummary(expB);
+      upBadge(expB);
+    }
+    upSummary();
+  };
+
+  /* ====================================================================
+     LEFT-PANEL IMAGE (fade transition)
+     ==================================================================== */
+  var _ft=null;
+  function setImg(bid,url){
+    var img=document.getElementById('BDMainImg-'+S);
+    var tag=document.getElementById('BDTag-'+S);
+    if(!img)return;
+    if(tag&&bid&&B[bid])tag.textContent=B[bid].t;
+    if(!url)return;
+    if(_ft){clearTimeout(_ft);_ft=null;}
+    if(img.src===url||img.src.replace(/^https?:/,'')===url.replace(/^https?:/,'')){img.style.opacity='1';return;}
+    img.style.opacity='0';
+    _ft=setTimeout(function(){_ft=null;
+      img.onload=function(){img.style.opacity='1';img.onload=null;};
+      img.onerror=function(){img.style.opacity='1';img.onerror=null;};
+      img.src=url;
+      setTimeout(function(){if(img.style.opacity==='0')img.style.opacity='1';},2000);
+    },140);
+  }
+
+  /* ====================================================================
+     CANVA-LIKE MANIPULATION ENGINE
+     ==================================================================== */
+  function getPointer(e){if(e.touches&&e.touches.length)return{x:e.touches[0].clientX,y:e.touches[0].clientY};return{x:e.clientX,y:e.clientY};}
+  function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+  function selectWrap(w){document.querySelectorAll('#BD-'+S+' .bd-wrap.selected').forEach(function(o){if(o!==w)o.classList.remove('selected');});w.classList.add('selected');}
+
+  function initManip(n){
+    var wrap=document.getElementById('BDWrap'+n+'-'+S);if(!wrap)return;
+    var area=wrap.closest('.bd-area');
+
+    /* select / deselect */
+    wrap.addEventListener('mousedown',function(e){if(e.target.closest('.bd-rh,.bd-rot,.bd-del'))return;selectWrap(wrap);});
+    wrap.addEventListener('touchstart',function(e){if(e.target.closest('.bd-rh,.bd-rot,.bd-del'))return;selectWrap(wrap);},{passive:true});
+    document.addEventListener('mousedown',function(e){if(!wrap.contains(e.target))wrap.classList.remove('selected');});
+    document.addEventListener('touchstart',function(e){if(!wrap.contains(e.target))wrap.classList.remove('selected');},{passive:true});
+
+    /* DRAG */
+    (function(){
+      var sx,sy,oL,oT,drag=false;
+      function dn(e){if(e.target.closest('.bd-rh,.bd-rot,.bd-del'))return;e.preventDefault();drag=true;var p=getPointer(e);sx=p.x;sy=p.y;oL=wrap.offsetLeft;oT=wrap.offsetTop;document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);}
+      function mv(e){if(!drag)return;e.preventDefault();var p=getPointer(e);var nL=clamp(oL+(p.x-sx),0,area.offsetWidth-wrap.offsetWidth);var nT=clamp(oT+(p.y-sy),0,area.offsetHeight-wrap.offsetHeight);wrap.style.left=nL+'px';wrap.style.top=nT+'px';wrap.style.transform='rotate('+rot[n]+'deg)';}
+      function up(){drag=false;document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);}
+      wrap.addEventListener('mousedown',dn);wrap.addEventListener('touchstart',dn,{passive:false});
+    })();
+
+    /* RESIZE (corner, aspect-ratio locked) */
+    wrap.querySelectorAll('.bd-rh').forEach(function(h){
+      var c=h.getAttribute('data-corner');
+      function dn(e){
+        e.preventDefault();e.stopPropagation();
+        var sp=getPointer(e),oW=wrap.offsetWidth,oH=wrap.offsetHeight,asp=oW/oH,oL=wrap.offsetLeft,oT=wrap.offsetTop,aW=area.offsetWidth,aH=area.offsetHeight,MIN=30;
+        function mv(ev){
+          ev.preventDefault();var p=getPointer(ev),dx=p.x-sp.x;
+          var nW=(c==='br'||c==='tr')?oW+dx:oW-dx;nW=Math.max(nW,MIN);var nH=nW/asp,nL=oL,nT=oT;
+          if(c==='br'||c==='tr'){nW=Math.min(nW,aW-oL);nH=nW/asp;}
+          if(c==='tl'||c==='bl'){nW=Math.min(nW,oL+oW);nH=nW/asp;nL=oL+oW-nW;}
+          if(c==='tl'||c==='tr'){var mH=oT+oH;if(nH>mH){nH=mH;nW=nH*asp;}nT=oT+oH-nH;if(c==='tl')nL=oL+oW-nW;}
+          if(c==='br'||c==='bl'){var mH2=aH-oT;if(nH>mH2){nH=mH2;nW=nH*asp;}if(c==='bl')nL=oL+oW-nW;}
+          wrap.style.width=nW+'px';wrap.style.height=nH+'px';wrap.style.left=nL+'px';wrap.style.top=nT+'px';
+        }
+        function up(){document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);}
+        document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);
+      }
+      h.addEventListener('mousedown',dn);h.addEventListener('touchstart',dn,{passive:false});
+    });
+
+    /* ROTATE */
+    var rh=wrap.querySelector('.bd-rot');
+    if(rh){(function(){
+      function dn(e){
+        e.preventDefault();e.stopPropagation();wrap.classList.add('rotating');
+        var tip=wrap.querySelector('.bd-ang');if(!tip){tip=document.createElement('span');tip.className='bd-ang';wrap.appendChild(tip);}
+        var r=wrap.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+        function mv(ev){ev.preventDefault();var p=getPointer(ev);var a=Math.atan2(p.y-cy,p.x-cx)*(180/Math.PI)+90;var s=Math.round(a/5)*5;rot[n]=s;wrap.style.transform='rotate('+s+'deg)';tip.textContent=s+'°';}
+        function up(){wrap.classList.remove('rotating');document.removeEventListener('mousemove',mv);document.removeEventListener('mouseup',up);document.removeEventListener('touchmove',mv);document.removeEventListener('touchend',up);}
+        document.addEventListener('mousemove',mv);document.addEventListener('mouseup',up);document.addEventListener('touchmove',mv,{passive:false});document.addEventListener('touchend',up);
+      }
+      rh.addEventListener('mousedown',dn);rh.addEventListener('touchstart',dn,{passive:false});
+    })();}
+  }
+
+  /* ====================================================================
+     ARTWORK UPLOAD
+     ==================================================================== */
+  window.bdTriggerUpload=function(sid,n){
+    bdSwitchArea(sid,n);
+    var fi=document.getElementById('BDFile'+n+'-'+sid);if(fi)fi.click();
+  };
+
+  window.bdUpload=function(e,sid,n){
+    var f=e.target.files&&e.target.files[0];if(!f)return;
+    
+    if(VALID_IMAGE_TYPES.indexOf(f.type)===-1){
+      alert('Invalid file.\nUpload PNG, JPG, SVG, or WebP.');
+      e.target.value='';
+      return;
+    }
+    if(f.size>10485760){
+      alert('Too large ('+(f.size/1048576).toFixed(1)+' MB).\nMax 10 MB.');
+      e.target.value='';
+      return;
+    }
+
+    /* Get current product's color */
+    var color = expB ? getCurrentColor(expB) : '__default__';
+
+    var rd=new FileReader();
+    rd.onload=function(ev){
+      /* Save to global artwork for this area + color */
+      if (!globalArtwork[n]) globalArtwork[n] = {};
+      globalArtwork[n][color] = {
+        file: f,
+        dataUrl: ev.target.result,
+        fileName: f.name,
+        wrapper: null  /* will be set after positioning */
+      };
+
+      /* Update UI */
+      var d=document.getElementById('BDDrop'+n+'-'+sid);
+      var nm=document.getElementById('BDName'+n+'-'+sid);
+      if(d)d.classList.add('has');
+      if(nm)nm.textContent=f.name;
+      
+      /* Tab thumbnail */
+      var tt=document.getElementById('BDTabThumb'+n+'-'+sid);
+      var ti=document.querySelector('#BDTabPrev'+n+'-'+sid+' .bd-tab__ico');
+      if(tt){tt.src=ev.target.result;tt.style.display='block';}
+      if(ti)ti.style.display='none';
+      
+      /* Overlay */
+      var wrap=document.getElementById('BDWrap'+n+'-'+sid);
+      var img=document.getElementById('BDPrev'+n+'-'+sid);
+      var area=document.getElementById('BDArea'+n+'-'+sid);
+      var ph=document.getElementById('BDPh'+n+'-'+sid);
+      
+      if(wrap&&img&&area){
+        img.onload=function(){
+          /* Auto-center at 80% */
+          var aW=area.offsetWidth,aH=area.offsetHeight;
+          var mxW=aW*0.8,mxH=aH*0.8;
+          var nW=img.naturalWidth,nH=img.naturalHeight;
+          var sc=Math.min(mxW/nW,mxH/nH,1);
+          var w=nW*sc,h=nH*sc;
+          wrap.style.width=w+'px';wrap.style.height=h+'px';
+          wrap.style.left=((aW-w)/2)+'px';wrap.style.top=((aH-h)/2)+'px';
+          rot[n]=0;wrap.style.transform='rotate(0deg)';
+          wrap.style.display='block';
+          if(ph)ph.style.display='none';
+          selectWrap(wrap);
+          
+          /* Save initial wrapper state */
+          if (globalArtwork[n] && globalArtwork[n][color]) {
+            globalArtwork[n][color].wrapper = getWrapState(n);
+          }
+        };
+        img.src=ev.target.result;
+      }
+      
+      renderArtworkSummary();
+      if (expB) {
+        renderSelectionSummary(expB);
+        upBadge(expB);
+      }
+      upSummary();
+    };
+    rd.readAsDataURL(f);
+  };
+
+  window.bdOverlayRemove=function(sid,n){
+    if (!expB) return;
+    var color = getCurrentColor(expB);
+    
+    /* Remove from global artwork for this color */
+    if (globalArtwork[n]) delete globalArtwork[n][color];
+    
+    /* Clear UI */
+    var wrap=document.getElementById('BDWrap'+n+'-'+sid);
+    var img=document.getElementById('BDPrev'+n+'-'+sid);
+    var ph=document.getElementById('BDPh'+n+'-'+sid);
+    var d=document.getElementById('BDDrop'+n+'-'+sid);
+    var nm=document.getElementById('BDName'+n+'-'+sid);
+    var fi=document.getElementById('BDFile'+n+'-'+sid);
+    
+    if(img)img.removeAttribute('src');
+    if(wrap){wrap.style.display='none';wrap.classList.remove('selected');}
+    if(ph)ph.style.display='';
+    if(d)d.classList.remove('has');
+    if(nm)nm.textContent='Click To Upload Image';
+    if(fi)fi.value='';
+    rot[n]=0;
+    
+    renderArtworkSummary();
+    if (expB) {
+      renderSelectionSummary(expB);
+      upBadge(expB);
+    }
+    upSummary();
+  };
+
+  /* ====================================================================
+     FRONT / BACK VIEW TOGGLE
+     ==================================================================== */
+  window.bdSwitchView=function(sid,view,btnEl){
+    var isFront=(view==='front');
+    var n=isFront?1:2;
+
+    /* Save current artwork state before switching */
+    if(expB) saveCurrentArtwork(expB);
+    
+    activeArea=n;
+
+    /* Toggle upload sections */
+    var s1=document.getElementById('BDUpSec1-'+sid);
+    var s2=document.getElementById('BDUpSec2-'+sid);
+    if(s1)s1.style.display=isFront?'block':'none';
+    if(s2)s2.style.display=isFront?'none':'block';
+
+    /* Toggle overlay areas */
+    var a1=document.getElementById('BDArea1-'+sid);
+    var a2=document.getElementById('BDArea2-'+sid);
+    if(a1){a1.style.display=isFront?'flex':'none';if(isFront)a1.classList.add('bd-area--on');else a1.classList.remove('bd-area--on');}
+    if(a2){a2.style.display=isFront?'none':'flex';if(!isFront)a2.classList.add('bd-area--on');else a2.classList.remove('bd-area--on');}
+
+    /* Update buttons */
+    document.querySelectorAll('#BD-'+sid+' .bd-view-btn').forEach(function(b){b.classList.remove('active');});
+    if(btnEl)btnEl.classList.add('active');
+
+    /* Update tabs */
+    document.querySelectorAll('#BD-'+sid+' .bd-tab').forEach(function(t){t.classList.remove('bd-tab--on');});
+    var tc=document.querySelector('#BD-'+sid+' .bd-tab[data-area="'+n+'"]');if(tc)tc.classList.add('bd-tab--on');
+    var lbl=document.getElementById('BDPALbl-'+sid);
+    if(lbl)lbl.textContent=isFront?'{{ section.settings.print_area_1_label | escape }}':'{{ section.settings.print_area_2_label | escape }}';
+
+    /* Switch product image if there's a View/Side option */
+    if(expB && B[expB]){
+      var targetView = isFront ? 'Front' : 'Back';
+      var currentColor = getCurrentColor(expB);
+      
+      /* Try to find variant with matching view/side and current color */
+      var matchingVariant = B[expB].vs.find(function(v){
+        var hasView = false;
+        var hasColor = false;
+        for(var i=0; i<v.o.length; i++){
+          var opt = v.o[i];
+          if(opt && (opt.toLowerCase() === 'front' || opt.toLowerCase() === 'back')){
+            if(opt.toLowerCase() === targetView.toLowerCase()) hasView = true;
+          }
+          if(opt === currentColor) hasColor = true;
+        }
+        return hasView && hasColor;
+      });
+      
+      /* If no color match, try just view */
+      if(!matchingVariant){
+        matchingVariant = B[expB].vs.find(function(v){
+          for(var i=0; i<v.o.length; i++){
+            var opt = v.o[i];
+            if(opt && opt.toLowerCase() === targetView.toLowerCase()) return true;
+          }
+          return false;
+        });
+      }
+      
+      /* Update image if found */
+      if(matchingVariant && matchingVariant.img){
+        setImg(expB, matchingVariant.img);
+      }
+    }
+
+    bdUpdateBadges(sid);
+  };
+
+  window.bdSwitchArea=function(sid,n){
+    if(expB)saveCurrentArtwork(expB);
+    activeArea=n;
+    
+    /* Update tabs */
+    document.querySelectorAll('#BD-'+sid+' .bd-tab').forEach(function(t){t.classList.remove('bd-tab--on');});
+    var tc=document.querySelector('#BD-'+sid+' .bd-tab[data-area="'+n+'"]');if(tc)tc.classList.add('bd-tab--on');
+    var lbl=document.getElementById('BDPALbl-'+sid);
+    if(lbl)lbl.textContent=n===1?'{{ section.settings.print_area_1_label | escape }}':'{{ section.settings.print_area_2_label | escape }}';
+    
+    /* Sync overlays */
+    var a1=document.getElementById('BDArea1-'+sid),a2=document.getElementById('BDArea2-'+sid);
+    if(n===1){if(a1){a1.style.display='flex';a1.classList.add('bd-area--on');}if(a2){a2.style.display='none';a2.classList.remove('bd-area--on');}}
+    else{if(a1){a1.style.display='none';a1.classList.remove('bd-area--on');}if(a2){a2.style.display='flex';a2.classList.add('bd-area--on');}}
+    
+    /* Sync view buttons */
+    var btns=document.querySelectorAll('#BD-'+sid+' .bd-view-btn');
+    if(btns.length>=2){btns[0].classList.toggle('active',n===1);btns[1].classList.toggle('active',n===2);}
+    
+    /* Sync upload sections */
+    var s1=document.getElementById('BDUpSec1-'+sid),s2=document.getElementById('BDUpSec2-'+sid);
+    if(s1)s1.style.display=(n===1)?'block':'none';
+    if(s2)s2.style.display=(n===2)?'block':'none';
+    
+    /* Switch product image if there's a View/Side option */
+    if(expB && B[expB]){
+      var targetView = n===1 ? 'Front' : 'Back';
+      var currentColor = getCurrentColor(expB);
+      
+      /* Try to find variant with matching view/side and current color */
+      var matchingVariant = B[expB].vs.find(function(v){
+        var hasView = false;
+        var hasColor = false;
+        for(var i=0; i<v.o.length; i++){
+          var opt = v.o[i];
+          if(opt && (opt.toLowerCase() === 'front' || opt.toLowerCase() === 'back')){
+            if(opt.toLowerCase() === targetView.toLowerCase()) hasView = true;
+          }
+          if(opt === currentColor) hasColor = true;
+        }
+        return hasView && hasColor;
+      });
+      
+      /* If no color match, try just view */
+      if(!matchingVariant){
+        matchingVariant = B[expB].vs.find(function(v){
+          for(var i=0; i<v.o.length; i++){
+            var opt = v.o[i];
+            if(opt && opt.toLowerCase() === targetView.toLowerCase()) return true;
+          }
+          return false;
+        });
+      }
+      
+      /* Update image if found */
+      if(matchingVariant && matchingVariant.img){
+        setImg(expB, matchingVariant.img);
+      }
+    }
+  };
+
+  /* ====================================================================
+     SHOW / HIDE DESIGNER UI
+     ==================================================================== */
+  function showDesignerUI(sid){
+    var tip=document.getElementById('BDTip-'+sid);if(tip)tip.style.display='';
+    var tabs=document.getElementById('BDPATabs-'+sid);if(tabs)tabs.style.display='';
+    var vt=document.getElementById('BDViewToggle-'+sid);if(vt)vt.style.display='flex';
+    
+    var s1=document.getElementById('BDUpSec1-'+sid);
+    var s2=document.getElementById('BDUpSec2-'+sid);
+    if(activeArea===1){if(s1)s1.style.display='block';if(s2)s2.style.display='none';}
+    else{if(s1)s1.style.display='none';if(s2)s2.style.display='block';}
+    
+    var a1=document.getElementById('BDArea1-'+sid),a2=document.getElementById('BDArea2-'+sid);
+    if(activeArea===1){if(a1){a1.style.display='flex';a1.classList.add('bd-area--on');}if(a2){a2.style.display='none';a2.classList.remove('bd-area--on');}}
+    else{if(a1){a1.style.display='none';a1.classList.remove('bd-area--on');}if(a2){a2.style.display='flex';a2.classList.add('bd-area--on');}}
+  }
+
+  function hideDesignerUI(sid){
+    var tip=document.getElementById('BDTip-'+sid);if(tip)tip.style.display='none';
+    var tabs=document.getElementById('BDPATabs-'+sid);if(tabs)tabs.style.display='none';
+    var vt=document.getElementById('BDViewToggle-'+sid);if(vt)vt.style.display='none';
+    var s1=document.getElementById('BDUpSec1-'+sid);if(s1)s1.style.display='none';
+    var s2=document.getElementById('BDUpSec2-'+sid);if(s2)s2.style.display='none';
+    
+    var a1=document.getElementById('BDArea1-'+sid),a2=document.getElementById('BDArea2-'+sid);
+    if(a1){a1.style.display='none';a1.classList.remove('bd-area--on');}
+    if(a2){a2.style.display='none';a2.classList.remove('bd-area--on');}
+  }
+
+  /* ====================================================================
+     ACCORDION
+     ==================================================================== */
+  function closeAll(){
+    if(expB){
+      saveCurrentQuantities(expB);
+      saveCurrentArtwork(expB);
+    }
+    Object.keys(B).forEach(function(bid){
+      var p=document.getElementById('BDPanel-'+bid),c=document.getElementById('BDCard-'+bid);
+      if(p)p.style.display='none';if(c)c.classList.remove('active');
+    });
+    expB=null;
+  }
+
+  window.bdToggle=function(sid,bid){
+    var p=document.getElementById('BDPanel-'+bid);
+    var c=document.getElementById('BDCard-'+bid);
+    var bt=document.getElementById('BDBtn-'+bid);
+    
+    if(p.style.display==='none'){
+      closeAll();
+      p.style.display='block';
+      c.classList.add('active');
+      bt.textContent='Save';
+      bt.classList.remove('done');
+      expB=bid;
+      
+      /* Restore quantities and artwork for current color */
+      var color = getCurrentColor(bid);
+      restoreQuantities(bid, color);
+      restoreArtwork(bid, color);
+      renderSelectionSummary(bid);
+      
+      bdUpdateBadges(sid);
+      showDesignerUI(sid);
+      
+      /* Show product image */
+      var bestUrl=B[bid].fi;
+      var sw=document.querySelector('#BDCard-'+bid+' .bd-sw.selected');
+      if(sw){var lg=sw.getAttribute('data-lg');if(lg)bestUrl=lg;}
+      setImg(bid,bestUrl);
+      
+    } else {
+      bdSave(sid,bid);
+    }
+  };
+
+  window.bdSave=function(sid,bid){
+    saveCurrentQuantities(bid);
+    saveCurrentArtwork(bid);
+    
+    var p=document.getElementById('BDPanel-'+bid),c=document.getElementById('BDCard-'+bid),bt=document.getElementById('BDBtn-'+bid);
+    p.style.display='none';c.classList.remove('active');
+    
+    var q=getTotalQuantity(bid);
+    if(q>0){c.classList.add('saved');bt.textContent='Edit';bt.classList.add('done');B[bid].done=true;}
+    else{c.classList.remove('saved');bt.textContent='Edit';bt.classList.remove('done');B[bid].done=false;}
+    
+    expB=null;
+    upBadge(bid);
+    upSummary();
+    renderArtworkSummary();
+    
+    /* Auto-open next */
+    var ks=Object.keys(B),idx=ks.indexOf(bid);
+    for(var i=idx+1;i<ks.length;i++){
+      if(!B[ks[i]].done||getTotalQuantity(ks[i])===0){
+        var nid=ks[i];
+        setTimeout(function(){bdToggle(sid,nid);},200);
+        return;
+      }
+    }
+    
+    /* All done */
+    var bi='{% if section.settings.bundle_image %}{{ section.settings.bundle_image | image_url: width: 900 }}{% endif %}';
+    if(bi){
+      setImg(null,bi);
+      var tag=document.getElementById('BDTag-'+S);
+      if(tag)tag.textContent='{{ section.settings.bundle_title | escape }}';
+    }
+    hideDesignerUI(sid);
+    
+    [1,2].forEach(function(n){
+      var w=document.getElementById('BDWrap'+n+'-'+S);
+      var ph=document.getElementById('BDPh'+n+'-'+S);
+      if(w){w.style.display='none';w.classList.remove('selected');}
+      if(ph)ph.style.display='';
+    });
+    bdUpdateBadges(sid);
+  };
+
+  /* ====================================================================
+     SWATCH (with multi-color memory)
+     ==================================================================== */
+  window.bdSwatch=function(el,sid,bid){
+    /* Save current color's quantities and artwork BEFORE switching */
+    saveCurrentQuantities(bid);
+    saveCurrentArtwork(bid);
+    
+    var ch=el.parentElement.children;
+    for(var i=0;i<ch.length;i++)ch[i].classList.remove('selected');
+    el.classList.add('selected');
+    
+    var val=el.getAttribute('data-value'),oi=parseInt(el.getAttribute('data-oidx'));
+    B[bid].co[oi]=val;
+    
+    var lbl=document.getElementById('BDClrLbl-'+bid);
+    if(lbl)lbl.textContent=val;
+    
+    var lg=el.getAttribute('data-lg');
+    if(lg)setImg(bid,lg);
+    else{var vr=B[bid].vs.find(function(v){return v.o[oi]===val&&v.img;});setImg(bid,(vr&&vr.img)?vr.img:B[bid].fi);}
+    
+    var ct=document.getElementById('BDCThumb-'+bid);
+    if(ct){var v=B[bid].vs.find(function(vr){return vr.o[oi]===val&&vr.img;});if(v&&v.img)ct.src=v.img;}
+    
+    chkAvail(bid);
+    
+    /* Restore quantities and artwork for NEW color */
+    restoreQuantities(bid, val);
+    restoreArtwork(bid, val);
+    renderSelectionSummary(bid);
+    
+    bdUpdateBadges(sid);
+    upBadge(bid);
+    upSummary();
+  };
+
+  /* ====================================================================
+     SIZES & QUANTITIES
+     ==================================================================== */
+  function chkAvail(bid){
+    document.querySelectorAll('.bd-sz__in[data-bid="'+bid+'"]').forEach(function(i){
+      var sz=i.getAttribute('data-val'),si=parseInt(i.getAttribute('data-oidx'));
+      var tmp=[].concat(B[bid].co);tmp[si]=sz;
+      var m=B[bid].vs.find(function(v){for(var j=0;j<tmp.length;j++){if(tmp[j]&&v.o[j]!==tmp[j])return false;}return true;});
+      if(m&&m.a){i.disabled=false;i.closest('.bd-sz').style.opacity='1';}
+      else{i.disabled=true;i.value='';i.closest('.bd-sz').style.opacity='.35';}
+    });
+  }
+  
+  window.bdQtyChange=function(sid,bid){
+    document.querySelectorAll('.bd-sz__in[data-bid="'+bid+'"]').forEach(function(i){
+      var v=parseInt(i.value);
+      if(v>MQ)i.value=MQ;
+      if(v<0)i.value=0;
+    });
+    saveCurrentQuantities(bid);
+    renderSelectionSummary(bid);
+    upBadge(bid);
+    upSummary();
+  };
+
+  window.bdPACheck=function(sid,bid){
+    var cbs=document.querySelectorAll('#BDCard-'+bid+' .bd-chk input');
+    B[bid].pa=[];
+    cbs.forEach(function(cb){
+      if(cb.checked)B[bid].pa.push(parseInt(cb.getAttribute('data-area')));
+    });
+    upBadge(bid);
+  };
+
+  /* ====================================================================
+     BADGES & SUMMARY
+     ==================================================================== */
+  function upBadge(bid){
+    var q=getTotalQuantity(bid);
+    var qb=document.getElementById('BDTgQ-'+bid);
+    if(qb){qb.textContent=q+' Selected';qb.className='bd-tag bd-tag--qty'+(q>0?' ok':'');}
+    
+    /* Check if ANY color has artwork for this product's enabled areas */
+    var hasArt = false;
+    B[bid].pa.forEach(function(n) {
+      if (globalArtwork[n]) {
+        Object.keys(B[bid].ss).forEach(function(color) {
+          if (globalArtwork[n][color]) hasArt = true;
+        });
+      }
+    });
+    
+    var ab=document.getElementById('BDTgA-'+bid);
+    if(ab){ab.textContent=hasArt?'Artwork ready':'No artwork';ab.className='bd-tag bd-tag--art'+(hasArt?' ok':'');}
+  }
+  
+  function upSummary(){
+    var ti=0,tc=0,pc=0;
+    Object.keys(B).forEach(function(bid){
+      var q=getTotalQuantity(bid);
+      if(q>0){
+        ti+=q;
+        pc++;
+        /* Calculate price */
+        Object.keys(B[bid].ss).forEach(function(color){
+          Object.keys(B[bid].ss[color]).forEach(function(size){
+            var qty=B[bid].ss[color][size];
+            var vr=fVar(bid,color,size);
+            if(vr)tc+=qty*vr.p;
+          });
+        });
+      }
+      upBadge(bid);
+    });
+    
+    var pe=document.getElementById('BDPrice-'+S);
+    if(pe)pe.textContent='$'+((tc||0)/100).toFixed(2)+' '+CUR;
+    
+    var ie=document.getElementById('BDItems-'+S);
+    if(ie)ie.textContent=ti+' items across '+pc+' products';
+    
+    /* Check if any artwork exists globally */
+    var hasAnyArt = false;
+    [1, 2].forEach(function(n) {
+      if (globalArtwork[n] && Object.keys(globalArtwork[n]).length > 0) {
+        Object.keys(globalArtwork[n]).forEach(function(color) {
+          if (globalArtwork[n][color] && globalArtwork[n][color].dataUrl) hasAnyArt = true;
+        });
+      }
+    });
+    
+    var ab=document.getElementById('BDArtBadge-'+S);
+    if(ab){ab.textContent=hasAnyArt?'Artwork ready':'No artwork';ab.className='bd-art-badge'+(hasAnyArt?' ok':'');}
+    
+    renderArtworkSummary();
+  }
+  
+  function fVar(bid,color,size){
+    return B[bid].vs.find(function(v){
+      var cm=false,sm=false;
+      for(var i=0;i<v.o.length;i++){
+        if(v.o[i]===color)cm=true;
+        if(v.o[i]===size)sm=true;
+      }
+      return cm&&sm&&v.a;
+    });
+  }
+
+  /* ====================================================================
+     ADD BUNDLE TO CART
+     ==================================================================== */
+  window.bdAddToCart=async function(sid){
+    if(expB){
+      saveCurrentQuantities(expB);
+      saveCurrentArtwork(expB);
+    }
+    
+    var btn=document.getElementById('BDAddBtn-'+sid);
+    var orig=btn.textContent;
+    btn.textContent='Adding...';
+    btn.disabled=true;
+    
+    /* Build cart items with per-color artwork */
+    var items=[];
+    Object.keys(B).forEach(function(bid){
+      Object.keys(B[bid].ss).forEach(function(color){
+        Object.keys(B[bid].ss[color]).forEach(function(size){
+          var q=B[bid].ss[color][size];
+          if(q>0){
+            var vr=fVar(bid,color,size);
+            if(vr){
+              var item = {
+                id: vr.id,
+                quantity: q,
+                bid: bid,
+                color: color,
+                pa: B[bid].pa||[]
+              };
+              items.push(item);
+            }
+          }
+        });
+      });
+    });
+    
+    if(items.length===0){
+      alert('Please select at least one product with a quantity.');
+      btn.textContent=orig;
+      btn.disabled=false;
+      return;
+    }
+    
+    try{
+      for(var i=0;i<items.length;i++){
+        var it=items[i];
+        var fd=new FormData();
+        fd.append('id',it.id);
+        fd.append('quantity',it.quantity);
+        
+        /* Attach artwork files specific to this color */
+        it.pa.forEach(function(n) {
+          if (globalArtwork[n] && globalArtwork[n][it.color] && globalArtwork[n][it.color].file) {
+            var label = n === 1 ? '{{ section.settings.print_area_1_label | escape }}' : '{{ section.settings.print_area_2_label | escape }}';
+            fd.append('properties['+label+']', globalArtwork[n][it.color].file);
+          }
+        });
+        
+        fd.append('properties[_bundle]','{{ section.settings.bundle_title | escape }}');
+        fd.append('properties[Color]', it.color);
+        
+        await fetch(window.Shopify.routes.root+'cart/add.js',{method:'POST',body:fd});
+      }
+      
+      btn.textContent='Added to Cart!';
+      setTimeout(function(){btn.textContent=orig;btn.disabled=false;},2500);
+      
+      try{
+        var r=await fetch(window.Shopify.routes.root+'cart.js');
+        var cart=await r.json();
+        var dr=document.querySelector('cart-drawer'),no=document.querySelector('cart-notification');
+        if(dr&&dr.renderContents)dr.renderContents(cart);
+        else if(no&&no.renderContents){no.renderContents(cart);no.open();}
+        document.querySelectorAll('a[href="/cart"],.header__icon--cart,#cart-icon-bubble').forEach(function(ic){if(ic.offsetParent!==null)ic.click();});
+        document.documentElement.dispatchEvent(new CustomEvent('cart:refresh',{bubbles:true,detail:{cart:cart}}));
+      }catch(e){}
+    }catch(err){
+      console.error('Bundle error:',err);
+      alert('Something went wrong.');
+      btn.textContent=orig;
+      btn.disabled=false;
+    }
+  };
+
+  /* ====================================================================
+     INIT
+     ==================================================================== */
+  document.addEventListener('DOMContentLoaded',function(){
+    Object.keys(B).forEach(function(bid){
+      chkAvail(bid);
+      upBadge(bid);
+    });
+    upSummary();
+    initManip(1);
+    initManip(2);
+    
+    var mi=document.getElementById('BDMainImg-'+S);
+    if(mi)mi.style.opacity='1';
+  });
+})();
+</script>

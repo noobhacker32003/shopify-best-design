@@ -1,0 +1,1640 @@
+{% comment %}
+  ============================================================
+  Variant Product Designer — Enhanced with Canva-like Controls
+  ============================================================
+  Features added over the original:
+    1. Corner-handle resizing (aspect-ratio locked)
+    2. Rotation handle with visual feedback
+    3. Remove-image button
+    4. Constrained dragging within the print area
+    5. Visual selection state & toolbar
+  ============================================================
+{% endcomment %}
+
+{% schema %}
+{
+  "name": "Variant Product Designer",
+  "settings": [
+    {
+      "type": "header",
+      "content": "Front Print Area Settings"
+    },
+    {
+      "type": "color",
+      "id": "box_border",
+      "label": "Box Border Color",
+      "default": "#3b82f6"
+    },
+    {
+      "type": "range",
+      "id": "area_top",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Front Print Area Top %",
+      "default": 20
+    },
+    {
+      "type": "range",
+      "id": "area_left",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Front Print Area Left %",
+      "default": 28
+    },
+    {
+      "type": "range",
+      "id": "area_width",
+      "min": 10,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Front Print Area Width %",
+      "default": 44
+    },
+    {
+      "type": "range",
+      "id": "area_height",
+      "min": 10,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Front Print Area Height %",
+      "default": 50
+    },
+    {
+      "type": "header",
+      "content": "Back Print Area Settings"
+    },
+    {
+      "type": "range",
+      "id": "back_area_top",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Back Print Area Top %",
+      "default": 25
+    },
+    {
+      "type": "range",
+      "id": "back_area_left",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Back Print Area Left %",
+      "default": 28
+    },
+    {
+      "type": "range",
+      "id": "back_area_width",
+      "min": 10,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Back Print Area Width %",
+      "default": 44
+    },
+    {
+      "type": "range",
+      "id": "back_area_height",
+      "min": 10,
+      "max": 100,
+      "step": 1,
+      "unit": "%",
+      "label": "Back Print Area Height %",
+      "default": 45
+    }
+  ],
+  "presets": [
+    {
+      "name": "Variant Product Designer"
+    }
+  ]
+}
+{% endschema %}
+
+<div class="designer-wrapper">
+
+  <!-- ======================== LEFT: VISUAL PREVIEW ======================== -->
+  <div class="designer-visual">
+    <div class="shirt-container">
+
+      <img id="MainProductImage"
+           src="{{ product.selected_or_first_available_variant.featured_media | image_url: width: 800 }}"
+           alt="Custom Product"
+           loading="lazy">
+
+      {% if product.images.size > 1 %}
+      <div class="product-image-slider">
+        <button class="slider-arrow prev" onclick="slideImages(-1)" aria-label="Previous image">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <div class="slider-container">
+          <div class="slider-track" id="sliderTrack">
+            {% for image in product.images %}
+              <div class="thumbnail-item {% if forloop.first %}active{% endif %}"
+                   data-large-image="{{ image | image_url: width: 800 }}"
+                   onclick="changeMainImage('{{ image | image_url: width: 800 }}', this, {{ forloop.index0 }})">
+                <img src="{{ image | image_url: width: 100 }}" alt="{{ product.title }}">
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+        <button class="slider-arrow next" onclick="slideImages(1)" aria-label="Next image">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+      {% endif %}
+
+      {% comment %} ---- FRONT PRINT AREA ---- {% endcomment %}
+      <div id="Area-Front" class="print-area active"
+           style="top:25%; left:55%; width:10%; height:10%; display: flex;">
+
+        <div class="placeholder-text" id="placeholder-front" onclick="triggerUpload('front')">
+          <svg class="upload-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>Upload<br>Artwork</span>
+        </div>
+
+        {% comment %} Image wrapper — holds the image plus all manipulation handles {% endcomment %}
+        <div id="ImageWrapper-Front" class="image-wrapper" style="display:none;">
+          <img id="Preview-Front" class="preview-img" src="" alt="Front artwork">
+
+          {% comment %} Corner resize handles {% endcomment %}
+          <span class="resize-handle corner tl" data-corner="tl"></span>
+          <span class="resize-handle corner tr" data-corner="tr"></span>
+          <span class="resize-handle corner bl" data-corner="bl"></span>
+          <span class="resize-handle corner br" data-corner="br"></span>
+
+          {% comment %} Rotation handle {% endcomment %}
+          <span class="rotate-handle" title="Rotate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </span>
+
+          {% comment %} Remove button {% endcomment %}
+          <button type="button" class="remove-handle" title="Remove image" onclick="removeImage('front')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+      {% comment %} ---- BACK PRINT AREA ---- {% endcomment %}
+      <div id="Area-Back" class="print-area"
+           style="top:15%; left:{{ section.settings.area_left }}%; width:{{ section.settings.area_width }}%; height:30%; display: none;">
+
+        <div class="placeholder-text" id="placeholder-back" onclick="triggerUpload('back')">
+          <svg class="upload-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <span>Upload<br>Artwork</span>
+        </div>
+
+        <div id="ImageWrapper-Back" class="image-wrapper" style="display:none;">
+          <img id="Preview-Back" class="preview-img" src="" alt="Back artwork">
+          <span class="resize-handle corner tl" data-corner="tl"></span>
+          <span class="resize-handle corner tr" data-corner="tr"></span>
+          <span class="resize-handle corner bl" data-corner="bl"></span>
+          <span class="resize-handle corner br" data-corner="br"></span>
+          <span class="rotate-handle" title="Rotate">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><path d="M1 4v6h6"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+          </span>
+          <button type="button" class="remove-handle" title="Remove image" onclick="removeImage('back')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+
+    <p class="instruction-note">Tip: Click the print area to upload · Drag to move · Corner handles to resize · Top handle to rotate.</p>
+  </div>
+
+  <!-- ======================== RIGHT: CONTROLS ======================== -->
+  <div class="designer-controls">
+    <h1>{{ product.title }}</h1>
+
+    {% form 'product', product, enctype: 'multipart/form-data', class: 'designer-form', id: 'AddToCartForm' %}
+
+      <input type="hidden" name="id" id="RealVariantInput" value="{{ product.selected_or_first_available_variant.id }}">
+
+      {% for option in product.options_with_values %}
+        {% unless option.name == 'View' or option.name == 'Side' %}
+        <div class="option-group">
+          <label class="option-label">{{ option.name }}</label>
+
+          {% if option.name == 'Color' or option.name == 'Colour' %}
+            <div class="color-swatch-list">
+              {% for value in option.values %}
+                {%- assign swatch_image = null -%}
+                {%- for variant in product.variants -%}
+                  {%- if variant.options contains value and variant.featured_media -%}
+                    {%- assign swatch_image = variant.featured_media | image_url: width: 100 -%}
+                    {%- break -%}
+                  {%- endif -%}
+                {%- endfor -%}
+
+                <div class="swatch-item {% if option.selected_value == value %}selected{% endif %}"
+                     data-value="{{ value | escape }}"
+                     data-option-index="{{ forloop.parentloop.index0 }}"
+                     onclick="selectSwatch(this, '{{ option.name }}')">
+                  <span class="swatch-color" style="
+                    {% if swatch_image != null %}background-image:url('{{ swatch_image }}');background-size:cover;background-position:center;
+                    {% else %}background-color:{{ value | split: ' ' | last | handle }};{% endif %}">
+                  </span>
+                  <span class="tooltip">{{ value }}</span>
+                </div>
+              {% endfor %}
+            </div>
+
+          {% elsif option.name == 'Size' or option.name == 'Sizes' %}
+            <div class="size-quantity-grid">
+              {% for value in option.values %}
+                <div class="size-item">
+                  <input type="number" min="0" placeholder="0"
+                         class="size-input quantity-selector-input"
+                         data-option-index="{{ forloop.parentloop.index0 }}"
+                         data-value="{{ value | escape }}"
+                         oninput="updateTotals()">
+                  <span class="size-label">{{ value }}</span>
+                </div>
+              {% endfor %}
+            </div>
+
+          {% else %}
+            <select class="standard-select" onchange="updateVariant(this, {{ forloop.index0 }})">
+              {% for value in option.values %}
+                <option value="{{ value | escape }}" {% if option.selected_value == value %}selected{% endif %}>{{ value }}</option>
+              {% endfor %}
+            </select>
+          {% endif %}
+        </div>
+        {% endunless %}
+      {% endfor %}
+
+      <!-- Front upload -->
+      <div class="control-group" id="upload-section-front">
+        <label class="option-label">
+          1. Upload Artwork (Front)
+          <span class="color-badge" id="upload-color-badge-front"></span>
+        </label>
+        <div class="file-group active">
+          <label for="file-front" class="custom-file-upload">
+            <span id="FileNameDisplay-front">Click to Upload Image</span>
+          </label>
+          <input id="file-front" type="file" name="properties[Front Artwork]" accept="image/png, image/jpeg, image/svg+xml, image/webp" onchange="loadFile(event, 'front')">
+          <p class="upload-hint">Accepted: PNG, JPG, SVG, WebP</p>
+        </div>
+      </div>
+
+      <!-- Back upload (hidden until Back view) -->
+      <div class="control-group" id="upload-section-back" style="display:none;">
+        <label class="option-label">
+          2. Upload Artwork (Back)
+          <span class="color-badge" id="upload-color-badge-back"></span>
+        </label>
+        <div class="file-group active">
+          <label for="file-back" class="custom-file-upload">
+            <span id="FileNameDisplay-back">Click to Upload Image</span>
+          </label>
+          <input id="file-back" type="file" name="properties[Back Artwork]" accept="image/png, image/jpeg, image/svg+xml, image/webp" onchange="loadFile(event, 'back')">
+          <p class="upload-hint">Accepted: PNG, JPG, SVG, WebP</p>
+        </div>
+      </div>
+
+      <!-- Artwork summary: shows which colors have artwork uploaded -->
+      <div id="ArtworkSummary" class="artwork-summary" style="display:none;">
+        <label class="option-label">Artwork per Color</label>
+        <div id="ArtworkList" class="artwork-list"></div>
+      </div>
+
+      <!-- View toggle -->
+      <div class="view-toggle">
+        <button type="button" class="view-btn active" onclick="switchView('front')">Front View</button>
+        <button type="button" class="view-btn" onclick="switchView('back')">Back View</button>
+      </div>
+
+      <!-- Selection summary: shows all color+size picks across all colors -->
+      <div id="SelectionSummary" class="selection-summary" style="display:none;">
+        <label class="option-label">Your Selections</label>
+        <div id="SelectionList" class="selection-list"></div>
+      </div>
+
+      <!-- Cart summary -->
+      <div class="cart-summary-box">
+        <div class="summary-left">
+          <h2 id="Final-Total-Price">{{ product.selected_or_first_available_variant.price | money }}</h2>
+        </div>
+        <div class="summary-right">
+          <p id="Unit-Price-Display">{{ product.selected_or_first_available_variant.price | money }} /item</p>
+          <p id="Total-Items-Count">Total items: 0</p>
+        </div>
+      </div>
+
+      <button type="button" onclick="addMultipleToCart(this)" class="add-cart-btn">Add to Cart</button>
+    {% endform %}
+  </div>
+</div>
+
+<!-- =====================================================================
+     STYLES
+     ===================================================================== -->
+<style>
+  /* ---------- Layout ---------- */
+  .designer-wrapper{display:flex;flex-wrap:wrap;max-width:1200px;margin:40px auto;gap:40px;padding:0 20px;font-family:sans-serif}
+  .designer-visual,.designer-controls{flex:1;min-width:320px}
+
+  /* ---------- Shirt container ---------- */
+  .shirt-container{position:relative;width:100%;background:#f4f4f4;border-radius:8px;overflow:hidden}
+  #MainProductImage{width:100%;display:block}
+
+  /* ---------- Thumbnail slider ---------- */
+  .product-image-slider{display:flex;align-items:center;gap:10px;padding:10px;background:#fff;position:relative}
+  .slider-container{flex:1;overflow:hidden;position:relative}
+  .slider-track{display:flex;gap:10px;transition:transform .3s ease}
+  .slider-arrow{flex-shrink:0;width:36px;height:36px;background:#fff;border:2px solid #ddd;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+  .slider-arrow:hover{background:#000;color:#fff}
+  .thumbnail-item{flex-shrink:0;width:80px;height:80px;border:2px solid #ddd;border-radius:6px;overflow:hidden;cursor:pointer}
+  .thumbnail-item.active{border-color:#000;box-shadow:0 0 0 2px #000}
+  .thumbnail-item img{width:100%;height:100%;object-fit:cover}
+
+  /* ---------- Print area ---------- */
+  .print-area{position:absolute;border:2px dashed {{ section.settings.box_border }};background-color:{{ section.settings.box_border | color_modify: 'alpha', 0.08 }};display:flex;align-items:center;justify-content:center;overflow:visible;transition:opacity .3s ease-in-out;z-index:5}
+  .placeholder-text{
+    text-align:center;color:{{ section.settings.box_border }};
+    font-weight:600;font-size:13px;
+    /* Make it clickable */
+    pointer-events:auto;cursor:pointer;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:6px;
+    width:100%;height:100%;
+    border-radius:4px;
+    transition:background .2s, transform .15s;
+  }
+  .placeholder-text:hover{
+    background:{{ section.settings.box_border | color_modify: 'alpha', 0.12 }};
+    transform:scale(1.02);
+  }
+  .placeholder-text:active{transform:scale(0.98)}
+  .placeholder-text .upload-icon{
+    stroke:{{ section.settings.box_border }};opacity:.7;
+    transition:opacity .2s;
+  }
+  .placeholder-text:hover .upload-icon{opacity:1}
+
+  /* ---------- Image wrapper (the manipulable box) ---------- */
+  .image-wrapper{
+    position:absolute;
+    /* Start centred inside print area */
+    top:50%;left:50%;
+    transform:translate(-50%,-50%) rotate(0deg);
+    /* Will be sized by JS after image loads */
+    cursor:grab;
+    z-index:10;
+    touch-action:none;
+    user-select:none;
+    -webkit-user-select:none;
+  }
+  .image-wrapper:active{cursor:grabbing}
+  .image-wrapper .preview-img{
+    width:100%;height:100%;
+    display:block;
+    pointer-events:none;
+    -webkit-user-drag:none;
+  }
+
+  /* ---------- Selection outline (shown when wrapper has .selected) ---------- */
+  .image-wrapper.selected{outline:2px solid {{ section.settings.box_border }};outline-offset:2px}
+
+  /* Handles are hidden until .selected */
+  .image-wrapper .resize-handle,
+  .image-wrapper .rotate-handle,
+  .image-wrapper .remove-handle{opacity:0;pointer-events:none;transition:opacity .15s}
+  .image-wrapper.selected .resize-handle,
+  .image-wrapper.selected .rotate-handle,
+  .image-wrapper.selected .remove-handle{opacity:1;pointer-events:auto}
+
+  /* ---------- Resize corner handles ---------- */
+  .resize-handle.corner{
+    position:absolute;width:14px;height:14px;
+    background:#fff;border:2px solid {{ section.settings.box_border }};
+    border-radius:3px;z-index:20;
+  }
+  .resize-handle.tl{top:-7px;left:-7px;cursor:nwse-resize}
+  .resize-handle.tr{top:-7px;right:-7px;cursor:nesw-resize}
+  .resize-handle.bl{bottom:-7px;left:-7px;cursor:nesw-resize}
+  .resize-handle.br{bottom:-7px;right:-7px;cursor:nwse-resize}
+
+  /* ---------- Rotation handle ---------- */
+  .rotate-handle{
+    position:absolute;
+    top:-32px;left:50%;transform:translateX(-50%);
+    width:24px;height:24px;border-radius:50%;
+    background:{{ section.settings.box_border }};
+    display:flex;align-items:center;justify-content:center;
+    cursor:grab;z-index:20;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+  }
+  .rotate-handle::before{
+    content:'';position:absolute;top:100%;left:50%;
+    width:2px;height:8px;background:{{ section.settings.box_border }};
+    transform:translateX(-50%);
+  }
+
+  /* ---------- Remove button ---------- */
+  .remove-handle{
+    position:absolute;top:-10px;right:-10px;
+    width:22px;height:22px;border-radius:50%;
+    background:#ef4444;border:none;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;z-index:25;
+    box-shadow:0 1px 4px rgba(0,0,0,.25);
+  }
+  .remove-handle:hover{background:#dc2626}
+
+  /* ---------- View toggle ---------- */
+  .view-toggle{display:flex;gap:10px;margin-top:15px;justify-content:center}
+  .view-btn{flex:1;padding:10px 20px;background:#fff;border:2px solid #ddd;border-radius:6px;cursor:pointer;font-weight:600}
+  .view-btn.active{background:#000;color:#fff;border-color:#000}
+
+  /* ---------- Controls ---------- */
+  .instruction-note{text-align:center;font-size:12px;color:#666;margin-top:10px}
+  .option-group{margin-bottom:20px}
+  .option-label{display:block;font-weight:bold;margin-bottom:8px;font-size:14px}
+  .color-swatch-list{display:flex;gap:10px;flex-wrap:wrap}
+  .swatch-item{width:34px;height:34px;border-radius:50%;border:1px solid #ccc;position:relative;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+  .swatch-color{width:28px;height:28px;border-radius:50%;display:block;border:1px solid rgba(0,0,0,.1);overflow:hidden}
+  .swatch-item.selected{border:2px solid #000;transform:scale(1.1)}
+  .tooltip{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);background:#000;color:#fff;font-size:10px;padding:4px 6px;border-radius:4px;opacity:0;pointer-events:none;margin-bottom:5px;white-space:nowrap}
+  .swatch-item:hover .tooltip{opacity:1}
+  .standard-select{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px}
+  .size-quantity-grid{display:flex;gap:10px;flex-wrap:wrap}
+  .size-item{display:flex;flex-direction:column;align-items:center;width:60px}
+  .size-input{width:100%;height:40px;text-align:center;border:1px solid #ddd;border-radius:4px;font-size:16px;margin-bottom:5px}
+  .size-item.unavailable{opacity:.5}
+  .cart-summary-box{margin-top:30px;border:1px solid #e5e7eb;padding:15px 20px;display:flex;justify-content:space-between;align-items:center;background-color:#fff}
+  .summary-left h2{margin:0;font-size:24px;font-weight:bold}
+  .custom-file-upload{display:block;width:100%;padding:15px;border:2px dashed #ccc;text-align:center;cursor:pointer;border-radius:6px;font-weight:bold;color:#555;background:#fafafa}
+  input[type="file"]{display:none}
+  .add-cart-btn{width:100%;padding:16px;background:#000;color:#fff;border:none;font-size:16px;cursor:pointer;text-transform:uppercase;font-weight:bold;margin-top:10px;border-radius:6px}
+  .add-cart-btn:disabled{background:#777;cursor:not-allowed}
+  .designer-controls h1{line-height:1.2;margin-bottom:20px;display:block;width:100%;word-wrap:break-word;font-size:28px;letter-spacing:-.02em}
+
+  /* ---------- Rotation angle tooltip ---------- */
+  .angle-tooltip{
+    position:absolute;top:-56px;left:50%;transform:translateX(-50%);
+    background:rgba(0,0,0,.75);color:#fff;font-size:11px;
+    padding:2px 7px;border-radius:4px;white-space:nowrap;
+    pointer-events:none;display:none;
+  }
+  .image-wrapper.rotating .angle-tooltip{display:block}
+
+  /* ---------- Selection summary ---------- */
+  .selection-summary{margin-top:20px}
+  .selection-list{display:flex;flex-direction:column;gap:6px}
+  .selection-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:8px 12px;background:#f9fafb;border:1px solid #e5e7eb;
+    border-radius:6px;font-size:13px;gap:8px;
+  }
+  .selection-row .sel-color{font-weight:600}
+  .selection-row .sel-details{flex:1;color:#555}
+  .selection-row .sel-qty{font-weight:700;min-width:30px;text-align:right}
+  .selection-row .sel-remove{
+    width:20px;height:20px;border:none;background:none;
+    cursor:pointer;color:#9ca3af;display:flex;align-items:center;justify-content:center;
+    padding:0;border-radius:50%;transition:color .15s,background .15s;flex-shrink:0;
+  }
+  .selection-row .sel-remove:hover{color:#ef4444;background:#fef2f2}
+
+  /* ---------- Color badge on upload labels ---------- */
+  .color-badge{
+    display:inline-block;font-size:11px;font-weight:700;
+    padding:2px 8px;border-radius:10px;
+    background:#e0e7ff;color:#3730a3;
+    margin-left:6px;vertical-align:middle;
+  }
+  .color-badge:empty{display:none}
+
+  /* ---------- Upload hint ---------- */
+  .upload-hint{font-size:11px;color:#9ca3af;margin:4px 0 0;text-align:center}
+
+  /* ---------- File validation error ---------- */
+  .upload-error{
+    font-size:12px;color:#dc2626;margin:6px 0 0;
+    text-align:center;font-weight:600;display:none;
+  }
+
+  /* ---------- Artwork summary (per-color artwork indicators) ---------- */
+  .artwork-summary{margin-top:15px}
+  .artwork-list{display:flex;flex-direction:column;gap:5px}
+  .artwork-row{
+    display:flex;align-items:center;gap:8px;
+    padding:7px 12px;background:#f0fdf4;border:1px solid #bbf7d0;
+    border-radius:6px;font-size:12px;
+  }
+  .artwork-row .art-color{font-weight:700;min-width:60px}
+  .artwork-row .art-sides{flex:1;color:#166534}
+  .artwork-row .art-thumb{
+    width:28px;height:28px;border-radius:4px;object-fit:cover;
+    border:1px solid #d1d5db;flex-shrink:0;
+  }
+  .artwork-row .art-remove{
+    width:18px;height:18px;border:none;background:none;
+    cursor:pointer;color:#9ca3af;display:flex;align-items:center;justify-content:center;
+    padding:0;border-radius:50%;transition:color .15s;flex-shrink:0;
+  }
+  .artwork-row .art-remove:hover{color:#dc2626}
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:768px){
+    .designer-wrapper{flex-direction:column;gap:20px}
+    .designer-visual,.designer-controls{min-width:unset}
+    .resize-handle.corner{width:18px;height:18px}
+    .resize-handle.tl{top:-9px;left:-9px}
+    .resize-handle.tr{top:-9px;right:-9px}
+    .resize-handle.bl{bottom:-9px;left:-9px}
+    .resize-handle.br{bottom:-9px;right:-9px}
+    .rotate-handle{width:28px;height:28px;top:-36px}
+  }
+</style>
+
+<!-- =====================================================================
+     JAVASCRIPT
+     ===================================================================== -->
+<script>
+(function () {
+  'use strict';
+
+  /* =======================================================================
+     GLOBAL STATE
+     ======================================================================= */
+  var currencyCode = "{{ cart.currency.iso_code }}";
+
+  var productVariants = [
+    {% for variant in product.variants %}
+      {
+        id: {{ variant.id }},
+        title: "{{ variant.title | escape }}",
+        price: "{{ variant.price | money }}",
+        price_raw: {{ variant.price }},
+        available: {{ variant.available }},
+        options: [
+          "{{ variant.option1 | escape }}",
+          "{{ variant.option2 | escape }}",
+          "{{ variant.option3 | escape }}"
+        ],
+        featured_image: "{% if variant.featured_media %}{{ variant.featured_media | image_url: width: 800 }}{% else %}null{% endif %}"
+      }{% unless forloop.last %},{% endunless %}
+    {% endfor %}
+  ];
+
+  var currentOptions = [
+    "{{ product.selected_or_first_available_variant.option1 | escape }}",
+    "{{ product.selected_or_first_available_variant.option2 | escape }}",
+    "{{ product.selected_or_first_available_variant.option3 | escape }}"
+  ];
+
+  var currentUnitPriceRaw = {{ product.selected_or_first_available_variant.price }};
+  var currentView = 'front';
+  var currentSlideIndex = 0;
+  var totalImages = {{ product.images.size }};
+
+  /* Per-side manipulation state */
+  var imageState = {
+    front: { rotation: 0, loaded: false },
+    back:  { rotation: 0, loaded: false }
+  };
+
+  /* =======================================================================
+     MULTI-COLOR SELECTION MEMORY
+     -----------------------------------------------------------------------
+     savedSelections stores quantities across ALL colors so switching
+     colors doesn't lose data.
+     Structure: { "ColorValue": { "SizeValue": quantity, ... }, ... }
+     ======================================================================= */
+  var savedSelections = {};
+
+  /* =======================================================================
+     PER-COLOR ARTWORK MEMORY
+     -----------------------------------------------------------------------
+     savedArtwork stores uploaded artwork per color so each color variant
+     can have its own unique design.
+     Structure: {
+       "Red": {
+         front: { file: File, dataUrl: string, fileName: string,
+                  wrapper: { left, top, width, height, rotation } } | null,
+         back:  { ... } | null
+       }, ...
+     }
+     ======================================================================= */
+  var savedArtwork = {};
+  var VALID_IMAGE_TYPES = ['image/png','image/jpeg','image/jpg','image/svg+xml','image/webp'];
+
+  /* Detect which option index is Color and which is Size */
+  var colorOptionIndex = -1;
+  var sizeOptionIndex  = -1;
+
+  /* =======================================================================
+     INIT
+     ======================================================================= */
+  document.addEventListener('DOMContentLoaded', function () {
+    /* Detect which option index is Color and which is Size from the DOM */
+    var swatchEl = document.querySelector('.color-swatch-list [data-option-index]');
+    if (swatchEl) colorOptionIndex = parseInt(swatchEl.getAttribute('data-option-index'));
+    var sizeEl = document.querySelector('.quantity-selector-input[data-option-index]');
+    if (sizeEl) sizeOptionIndex = parseInt(sizeEl.getAttribute('data-option-index'));
+
+    checkGridAvailability();
+    updateTotals();
+    initManipulation('Front');
+    initManipulation('Back');
+  });
+
+  /* =======================================================================
+     MULTI-COLOR SELECTION HELPERS
+     ======================================================================= */
+  function getCurrentColor() {
+    if (colorOptionIndex === -1) return '__default__';
+    return currentOptions[colorOptionIndex] || '__default__';
+  }
+
+  /** Save the current visible size-input values into savedSelections for the current color */
+  function saveCurrentQuantities() {
+    var color = getCurrentColor();
+    var sizeInputs = document.querySelectorAll('.quantity-selector-input');
+    var hasAny = false;
+    var colorData = {};
+
+    sizeInputs.forEach(function (input) {
+      var qty = parseInt(input.value);
+      if (!isNaN(qty) && qty > 0 && !input.disabled) {
+        colorData[input.getAttribute('data-value')] = qty;
+        hasAny = true;
+      }
+    });
+
+    if (hasAny) {
+      savedSelections[color] = colorData;
+    } else {
+      delete savedSelections[color];
+    }
+  }
+
+  /** Restore saved size quantities for a given color back into the visible inputs */
+  function restoreQuantities(color) {
+    var data = savedSelections[color] || {};
+    var sizeInputs = document.querySelectorAll('.quantity-selector-input');
+    sizeInputs.forEach(function (input) {
+      var sizeVal = input.getAttribute('data-value');
+      if (!input.disabled && data[sizeVal]) {
+        input.value = data[sizeVal];
+      } else {
+        input.value = '';
+      }
+    });
+  }
+
+  /** Get total items & total price across ALL saved colors + current inputs */
+  function getAllSelectionsTotals() {
+    saveCurrentQuantities();
+    var totalItems = 0;
+    var totalCents = 0;
+
+    Object.keys(savedSelections).forEach(function (color) {
+      var sizes = savedSelections[color];
+      Object.keys(sizes).forEach(function (size) {
+        var qty = sizes[size];
+        if (qty > 0) {
+          var variant = findVariantByColorSize(color, size);
+          if (variant && variant.available) {
+            totalItems += qty;
+            totalCents += qty * variant.price_raw;
+          }
+        }
+      });
+    });
+    return { totalItems: totalItems, totalCents: totalCents };
+  }
+
+  /** Find a variant matching a specific color + size combo */
+  function findVariantByColorSize(color, size) {
+    return productVariants.find(function (v) {
+      var colorMatch = (colorOptionIndex === -1) || v.options[colorOptionIndex] === color;
+      var sizeMatch  = (sizeOptionIndex === -1)  || v.options[sizeOptionIndex] === size;
+      var othersMatch = true;
+      for (var i = 0; i < currentOptions.length; i++) {
+        if (i === colorOptionIndex || i === sizeOptionIndex) continue;
+        if (currentOptions[i] && v.options[i] !== currentOptions[i]) othersMatch = false;
+      }
+      return colorMatch && sizeMatch && othersMatch;
+    });
+  }
+
+  /** Render the selection summary panel showing all color × size picks */
+  function renderSelectionSummary() {
+    var container = document.getElementById('SelectionSummary');
+    var list = document.getElementById('SelectionList');
+    if (!container || !list) return;
+
+    saveCurrentQuantities();
+    var keys = Object.keys(savedSelections);
+    if (keys.length === 0) {
+      container.style.display = 'none';
+      return;
+    }
+
+    container.style.display = 'block';
+    var html = '';
+
+    keys.forEach(function (color) {
+      var sizes = savedSelections[color];
+      /* Check if this color has artwork */
+      var art = savedArtwork[color];
+      var hasArt = art && (art.front || art.back);
+      var artIcon = hasArt
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2" style="flex-shrink:0;margin-right:2px" title="Artwork uploaded">' +
+          '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>'
+        : '';
+
+      Object.keys(sizes).forEach(function (size) {
+        var qty = sizes[size];
+        if (qty > 0) {
+          var variant = findVariantByColorSize(color, size);
+          var price = variant ? formatMoney(variant.price_raw * qty) : '';
+          html += '<div class="selection-row">' +
+            artIcon +
+            '<span class="sel-color">' + escapeHtml(color) + '</span>' +
+            '<span class="sel-details">' + escapeHtml(size) + ' × ' + qty + '</span>' +
+            '<span class="sel-qty">' + price + '</span>' +
+            '<button type="button" class="sel-remove" title="Remove" onclick="removeSelectionLine(\'' +
+              escapeAttr(color) + '\',\'' + escapeAttr(size) + '\')">' +
+              '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+              '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+            '</button>' +
+          '</div>';
+        }
+      });
+    });
+
+    list.innerHTML = html;
+  }
+
+  function escapeHtml(s) {
+    var d = document.createElement('div'); d.textContent = s; return d.innerHTML;
+  }
+  function escapeAttr(s) {
+    return s.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'\\"');
+  }
+
+  /** Remove a specific color + size line from saved selections */
+  window.removeSelectionLine = function (color, size) {
+    if (savedSelections[color]) {
+      delete savedSelections[color][size];
+      if (Object.keys(savedSelections[color]).length === 0) delete savedSelections[color];
+    }
+    /* If removing from the currently visible color, clear that input too */
+    if (color === getCurrentColor()) {
+      var sizeInputs = document.querySelectorAll('.quantity-selector-input');
+      sizeInputs.forEach(function (input) {
+        if (input.getAttribute('data-value') === size) input.value = '';
+      });
+    }
+    updateTotals();
+  };
+
+  /* =======================================================================
+     PER-COLOR ARTWORK SAVE / RESTORE
+     ======================================================================= */
+
+  /** Save the current preview wrapper state (position, size, rotation) for a side */
+  function getWrapperState(side) {
+    var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+    var wrapper = document.getElementById('ImageWrapper-' + sideCapital);
+    if (!wrapper || wrapper.style.display === 'none') return null;
+    return {
+      left: wrapper.style.left,
+      top: wrapper.style.top,
+      width: wrapper.style.width,
+      height: wrapper.style.height,
+      rotation: imageState[side] ? imageState[side].rotation : 0
+    };
+  }
+
+  /** Apply a saved wrapper state back to the preview */
+  function setWrapperState(side, state) {
+    var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+    var wrapper = document.getElementById('ImageWrapper-' + sideCapital);
+    if (!wrapper || !state) return;
+    wrapper.style.left   = state.left;
+    wrapper.style.top    = state.top;
+    wrapper.style.width  = state.width;
+    wrapper.style.height = state.height;
+    wrapper.style.transform = 'rotate(' + (state.rotation || 0) + 'deg)';
+    if (imageState[side]) imageState[side].rotation = state.rotation || 0;
+  }
+
+  /** Save current artwork (file + preview) for the current color */
+  function saveCurrentArtwork() {
+    var color = getCurrentColor();
+    if (color === '__default__') return;
+    if (!savedArtwork[color]) savedArtwork[color] = { front: null, back: null };
+
+    ['front', 'back'].forEach(function (side) {
+      var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+      var img = document.getElementById('Preview-' + sideCapital);
+      var wrapper = document.getElementById('ImageWrapper-' + sideCapital);
+
+      if (img && img.src && wrapper && wrapper.style.display !== 'none') {
+        var existing = savedArtwork[color][side] || {};
+        savedArtwork[color][side] = {
+          file: existing.file || null,    /* File object preserved from loadFile */
+          dataUrl: img.src,
+          fileName: existing.fileName || '',
+          wrapper: getWrapperState(side)
+        };
+      }
+      /* If no image is loaded, explicitly set null so restoring clears it */
+      if (!img || !img.src || wrapper.style.display === 'none') {
+        savedArtwork[color][side] = null;
+      }
+    });
+  }
+
+  /** Restore artwork for a given color into the preview areas */
+  function restoreArtwork(color) {
+    ['front', 'back'].forEach(function (side) {
+      var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+      var wrapper = document.getElementById('ImageWrapper-' + sideCapital);
+      var img = document.getElementById('Preview-' + sideCapital);
+      var placeholder = document.getElementById('placeholder-' + side);
+      var fileDisplay = document.getElementById('FileNameDisplay-' + side);
+      var fileInput = document.getElementById('file-' + side);
+
+      var artData = (savedArtwork[color] && savedArtwork[color][side]) ? savedArtwork[color][side] : null;
+
+      if (artData && artData.dataUrl) {
+        /* Restore the image */
+        img.src = artData.dataUrl;
+        wrapper.style.display = 'block';
+        placeholder.style.display = 'none';
+        fileDisplay.innerText = artData.fileName || 'Custom image';
+        if (artData.wrapper) setWrapperState(side, artData.wrapper);
+        if (imageState[side]) imageState[side].loaded = true;
+      } else {
+        /* No artwork for this color on this side — clear */
+        img.src = '';
+        wrapper.style.display = 'none';
+        wrapper.classList.remove('selected');
+        placeholder.style.display = '';
+        fileDisplay.innerText = 'Click to Upload Image';
+        if (imageState[side]) {
+          imageState[side].rotation = 0;
+          imageState[side].loaded = false;
+        }
+      }
+      /* Always clear file input — we store Files in savedArtwork */
+      if (fileInput) fileInput.value = '';
+    });
+  }
+
+  /** Update the color badges on the upload labels */
+  function updateColorBadges() {
+    var color = getCurrentColor();
+    var badgeFront = document.getElementById('upload-color-badge-front');
+    var badgeBack = document.getElementById('upload-color-badge-back');
+    if (badgeFront) badgeFront.textContent = (color !== '__default__') ? color : '';
+    if (badgeBack) badgeBack.textContent = (color !== '__default__') ? color : '';
+  }
+
+  /** Render the artwork summary showing which colors have uploads */
+  function renderArtworkSummary() {
+    var container = document.getElementById('ArtworkSummary');
+    var list = document.getElementById('ArtworkList');
+    if (!container || !list) return;
+
+    /* Make sure current color is saved */
+    saveCurrentArtwork();
+
+    var colors = Object.keys(savedArtwork);
+    var hasAny = false;
+    var html = '';
+
+    colors.forEach(function (color) {
+      var art = savedArtwork[color];
+      if (!art) return;
+      var hasFront = art.front && art.front.dataUrl;
+      var hasBack  = art.back && art.back.dataUrl;
+      if (!hasFront && !hasBack) return;
+
+      hasAny = true;
+      var sides = [];
+      if (hasFront) sides.push('Front');
+      if (hasBack) sides.push('Back');
+
+      /* Use a tiny thumbnail of the front artwork if available */
+      var thumbSrc = hasFront ? art.front.dataUrl : art.back.dataUrl;
+
+      html += '<div class="artwork-row">' +
+        '<img class="art-thumb" src="' + thumbSrc + '" alt="' + escapeHtml(color) + '">' +
+        '<span class="art-color">' + escapeHtml(color) + '</span>' +
+        '<span class="art-sides">' + sides.join(' + ') + '</span>' +
+        '<button type="button" class="art-remove" title="Remove all artwork for ' + escapeHtml(color) + '" ' +
+          'onclick="removeColorArtwork(\'' + escapeAttr(color) + '\')">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">' +
+          '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>' +
+        '</button>' +
+      '</div>';
+    });
+
+    if (hasAny) {
+      container.style.display = 'block';
+      list.innerHTML = html;
+    } else {
+      container.style.display = 'none';
+    }
+  }
+
+  /** Remove all artwork for a specific color */
+  window.removeColorArtwork = function (color) {
+    delete savedArtwork[color];
+    /* If this is the currently displayed color, clear the preview */
+    if (color === getCurrentColor()) {
+      ['front', 'back'].forEach(function (side) {
+        clearPreview(side);
+      });
+    }
+    renderArtworkSummary();
+  };
+
+  /** Clear the preview for a side without affecting savedArtwork */
+  function clearPreview(side) {
+    var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+    var wrapper = document.getElementById('ImageWrapper-' + sideCapital);
+    var img = document.getElementById('Preview-' + sideCapital);
+    var placeholder = document.getElementById('placeholder-' + side);
+    var fileInput = document.getElementById('file-' + side);
+
+    if (img) img.src = '';
+    if (wrapper) { wrapper.style.display = 'none'; wrapper.classList.remove('selected'); }
+    if (placeholder) placeholder.style.display = '';
+    if (fileInput) fileInput.value = '';
+    document.getElementById('FileNameDisplay-' + side).innerText = 'Click to Upload Image';
+    if (imageState[side]) {
+      imageState[side].rotation = 0;
+      imageState[side].loaded = false;
+    }
+  }
+
+  /* =======================================================================
+     IMAGE MANIPULATION ENGINE
+     -----------------------------------------------------------------------
+     Each print area has an .image-wrapper that supports:
+       • Drag (constrained to print area)
+       • Corner resize (aspect-ratio locked)
+       • Rotate (via top handle)
+       • Remove
+     ======================================================================= */
+  function initManipulation(side) {
+    var wrapper = document.getElementById('ImageWrapper-' + side);
+    if (!wrapper) return;
+
+    var area = wrapper.closest('.print-area');
+    var img  = document.getElementById('Preview-' + side);
+    var sideKey = side.toLowerCase();
+
+    /* ---- Click to select / deselect ---- */
+    wrapper.addEventListener('mousedown', function (e) {
+      // Don't select if we're clicking a handle
+      if (e.target.closest('.resize-handle') || e.target.closest('.rotate-handle') || e.target.closest('.remove-handle')) return;
+      selectWrapper(wrapper);
+    });
+    wrapper.addEventListener('touchstart', function (e) {
+      if (e.target.closest('.resize-handle') || e.target.closest('.rotate-handle') || e.target.closest('.remove-handle')) return;
+      selectWrapper(wrapper);
+    }, { passive: true });
+
+    /* Deselect when clicking outside */
+    document.addEventListener('mousedown', function (e) {
+      if (!wrapper.contains(e.target)) wrapper.classList.remove('selected');
+    });
+    document.addEventListener('touchstart', function (e) {
+      if (!wrapper.contains(e.target)) wrapper.classList.remove('selected');
+    }, { passive: true });
+
+    /* ---- DRAG ---- */
+    (function () {
+      var startX, startY, origLeft, origTop;
+      var dragging = false;
+
+      function onDown(e) {
+        if (e.target.closest('.resize-handle') || e.target.closest('.rotate-handle') || e.target.closest('.remove-handle')) return;
+        e.preventDefault();
+        dragging = true;
+        var pt = getPointer(e);
+        startX = pt.x;
+        startY = pt.y;
+        origLeft = wrapper.offsetLeft;
+        origTop  = wrapper.offsetTop;
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+      }
+
+      function onMove(e) {
+        if (!dragging) return;
+        e.preventDefault();
+        var pt = getPointer(e);
+        var dx = pt.x - startX;
+        var dy = pt.y - startY;
+        var newLeft = origLeft + dx;
+        var newTop  = origTop  + dy;
+
+        /* Constrain within print area */
+        var areaW = area.offsetWidth;
+        var areaH = area.offsetHeight;
+        var wW = wrapper.offsetWidth;
+        var wH = wrapper.offsetHeight;
+        newLeft = clamp(newLeft, 0, areaW - wW);
+        newTop  = clamp(newTop,  0, areaH - wH);
+
+        wrapper.style.left = newLeft + 'px';
+        wrapper.style.top  = newTop  + 'px';
+        wrapper.style.transform = 'rotate(' + imageState[sideKey].rotation + 'deg)';
+      }
+
+      function onUp() {
+        dragging = false;
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onUp);
+      }
+
+      wrapper.addEventListener('mousedown', onDown);
+      wrapper.addEventListener('touchstart', onDown, { passive: false });
+    })();
+
+    /* ---- RESIZE (corner handles, aspect-ratio locked) ---- */
+    var handles = wrapper.querySelectorAll('.resize-handle.corner');
+    handles.forEach(function (handle) {
+      var corner = handle.getAttribute('data-corner');
+
+      function onDown(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var startPt  = getPointer(e);
+        var origW    = wrapper.offsetWidth;
+        var origH    = wrapper.offsetHeight;
+        var aspect   = origW / origH;
+        var origLeft = wrapper.offsetLeft;
+        var origTop  = wrapper.offsetTop;
+        var areaW    = area.offsetWidth;
+        var areaH    = area.offsetHeight;
+
+        var MIN_SIZE = 30;
+
+        function onMove(ev) {
+          ev.preventDefault();
+          var pt = getPointer(ev);
+          var dx = pt.x - startPt.x;
+          var dy = pt.y - startPt.y;
+
+          var newW = origW, newH = origH, newL = origLeft, newT = origTop;
+
+          /* Determine size change based on which corner is dragged */
+          if (corner === 'br') {
+            newW = origW + dx;
+          } else if (corner === 'bl') {
+            newW = origW - dx;
+          } else if (corner === 'tr') {
+            newW = origW + dx;
+          } else if (corner === 'tl') {
+            newW = origW - dx;
+          }
+
+          /* Clamp minimum */
+          newW = Math.max(newW, MIN_SIZE);
+          /* Lock aspect ratio */
+          newH = newW / aspect;
+
+          /* Max constraints: image cannot exceed print area */
+          if (corner === 'br' || corner === 'tr') {
+            var maxW = areaW - origLeft;
+            newW = Math.min(newW, maxW);
+            newH = newW / aspect;
+          }
+          if (corner === 'tl' || corner === 'bl') {
+            var maxW2 = origLeft + origW;
+            newW = Math.min(newW, maxW2);
+            newH = newW / aspect;
+            newL = origLeft + origW - newW;
+          }
+          if (corner === 'tl' || corner === 'tr') {
+            var maxH = origTop + origH;
+            if (newH > maxH) { newH = maxH; newW = newH * aspect; }
+            newT = origTop + origH - newH;
+            if (corner === 'tl') newL = origLeft + origW - newW;
+          }
+          if (corner === 'br' || corner === 'bl') {
+            var maxH2 = areaH - origTop;
+            if (newH > maxH2) { newH = maxH2; newW = newH * aspect; }
+            if (corner === 'bl') newL = origLeft + origW - newW;
+          }
+
+          wrapper.style.width  = newW + 'px';
+          wrapper.style.height = newH + 'px';
+          wrapper.style.left   = newL + 'px';
+          wrapper.style.top    = newT + 'px';
+        }
+
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup', onUp);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend', onUp);
+        }
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+      }
+
+      handle.addEventListener('mousedown', onDown);
+      handle.addEventListener('touchstart', onDown, { passive: false });
+    });
+
+    /* ---- ROTATE ---- */
+    var rotateHandle = wrapper.querySelector('.rotate-handle');
+    if (rotateHandle) {
+      (function () {
+        function onDown(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          wrapper.classList.add('rotating');
+
+          /* Tooltip element */
+          var tooltip = wrapper.querySelector('.angle-tooltip');
+          if (!tooltip) {
+            tooltip = document.createElement('span');
+            tooltip.className = 'angle-tooltip';
+            wrapper.appendChild(tooltip);
+          }
+
+          /* Centre of the wrapper in page coords */
+          var rect = wrapper.getBoundingClientRect();
+          var cx = rect.left + rect.width / 2;
+          var cy = rect.top  + rect.height / 2;
+
+          function onMove(ev) {
+            ev.preventDefault();
+            var pt = getPointer(ev);
+            var angle = Math.atan2(pt.y - cy, pt.x - cx) * (180 / Math.PI) + 90;
+            /* Snap to nearest 5° when close */
+            var snapped = Math.round(angle / 5) * 5;
+            imageState[sideKey].rotation = snapped;
+            wrapper.style.transform = 'rotate(' + snapped + 'deg)';
+            tooltip.textContent = snapped + '°';
+          }
+
+          function onUp() {
+            wrapper.classList.remove('rotating');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+          }
+
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+          document.addEventListener('touchmove', onMove, { passive: false });
+          document.addEventListener('touchend', onUp);
+        }
+
+        rotateHandle.addEventListener('mousedown', onDown);
+        rotateHandle.addEventListener('touchstart', onDown, { passive: false });
+      })();
+    }
+  }
+
+  /* =======================================================================
+     HELPER UTILITIES
+     ======================================================================= */
+  function getPointer(e) {
+    if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+  function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+  function selectWrapper(wrapper) {
+    /* Deselect all others first */
+    document.querySelectorAll('.image-wrapper.selected').forEach(function (w) {
+      if (w !== wrapper) w.classList.remove('selected');
+    });
+    wrapper.classList.add('selected');
+  }
+
+  /* =======================================================================
+     LOAD / REMOVE IMAGE
+     ======================================================================= */
+  window.loadFile = function (event, side) {
+    var input = event.target;
+    if (!input.files || !input.files[0]) return;
+
+    var file = input.files[0];
+    var sideCapital = side.charAt(0).toUpperCase() + side.slice(1);
+
+    /* ---- Validate file type ---- */
+    if (VALID_IMAGE_TYPES.indexOf(file.type) === -1) {
+      alert('Invalid file type: "' + file.type + '"\n\nPlease upload a PNG, JPG, SVG, or WebP image.');
+      input.value = '';
+      return;
+    }
+
+    /* ---- Validate file size (max 10MB) ---- */
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File is too large (' + (file.size / 1024 / 1024).toFixed(1) + ' MB).\n\nMaximum allowed: 10 MB.');
+      input.value = '';
+      return;
+    }
+
+    document.getElementById('FileNameDisplay-' + side).innerText = file.name;
+
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      var wrapper     = document.getElementById('ImageWrapper-' + sideCapital);
+      var img         = document.getElementById('Preview-' + sideCapital);
+      var area        = wrapper.closest('.print-area');
+      var placeholder = document.getElementById('placeholder-' + side);
+
+      img.onload = function () {
+        /* Size the wrapper to fit image within print area (max 80%) */
+        var areaW = area.offsetWidth;
+        var areaH = area.offsetHeight;
+        var maxW  = areaW * 0.8;
+        var maxH  = areaH * 0.8;
+        var natW  = img.naturalWidth;
+        var natH  = img.naturalHeight;
+        var scale = Math.min(maxW / natW, maxH / natH, 1);
+        var w = natW * scale;
+        var h = natH * scale;
+
+        wrapper.style.width  = w + 'px';
+        wrapper.style.height = h + 'px';
+        wrapper.style.left = ((areaW - w) / 2) + 'px';
+        wrapper.style.top  = ((areaH - h) / 2) + 'px';
+        wrapper.style.transform = 'rotate(0deg)';
+        if (imageState[side]) {
+          imageState[side].rotation = 0;
+          imageState[side].loaded = true;
+        }
+
+        wrapper.style.display = 'block';
+        placeholder.style.display = 'none';
+        selectWrapper(wrapper);
+
+        /* ---- Store artwork in per-color memory ---- */
+        var color = getCurrentColor();
+        if (!savedArtwork[color]) savedArtwork[color] = { front: null, back: null };
+        savedArtwork[color][side] = {
+          file: file,
+          dataUrl: e.target.result,
+          fileName: file.name,
+          wrapper: getWrapperState(side)
+        };
+
+        renderArtworkSummary();
+      };
+
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  window.removeImage = function (side) {
+    var color = getCurrentColor();
+
+    /* Remove from savedArtwork */
+    if (savedArtwork[color]) {
+      savedArtwork[color][side] = null;
+      /* Clean up color entry if both sides are now empty */
+      if (!savedArtwork[color].front && !savedArtwork[color].back) {
+        delete savedArtwork[color];
+      }
+    }
+
+    /* Clear the visible preview */
+    clearPreview(side);
+    renderArtworkSummary();
+  };
+
+  /* =======================================================================
+     TRIGGER UPLOAD FROM PRINT AREA CLICK
+     -----------------------------------------------------------------------
+     When the user clicks/taps the placeholder inside a print area,
+     we programmatically open the corresponding file input dialog.
+     ======================================================================= */
+  window.triggerUpload = function (side) {
+    var fileInput = document.getElementById('file-' + side);
+    if (fileInput) fileInput.click();
+  };
+
+  /* =======================================================================
+     VARIANT / SWATCH LOGIC (unchanged from original, exposed globally)
+     ======================================================================= */
+  window.updateTotals = function () {
+    /* Aggregate across ALL saved colors + current visible inputs */
+    var totals = getAllSelectionsTotals();
+    var totalItems = totals.totalItems;
+    var totalPriceCents = totals.totalCents;
+
+    document.getElementById('Total-Items-Count').innerText = 'Total items: ' + totalItems;
+    if (totalItems === 0) totalPriceCents = currentUnitPriceRaw;
+    document.getElementById('Final-Total-Price').innerText = formatMoney(totalPriceCents);
+    document.getElementById('Unit-Price-Display').innerText = formatMoney(currentUnitPriceRaw) + ' /item';
+
+    /* Update the visual selection summary */
+    renderSelectionSummary();
+
+    /* Update artwork indicators */
+    renderArtworkSummary();
+    updateColorBadges();
+  };
+
+  function formatMoney(cents) {
+    return '$' + (cents / 100).toFixed(2) + ' ' + currencyCode;
+  }
+
+  window.selectSwatch = function (element, optionName) {
+    /* ---- 1. Save current size quantities AND artwork BEFORE changing color ---- */
+    saveCurrentQuantities();
+    saveCurrentArtwork();
+
+    var siblings = element.parentElement.children;
+    for (var i = 0; i < siblings.length; i++) siblings[i].classList.remove('selected');
+    element.classList.add('selected');
+
+    var value = element.getAttribute('data-value');
+    var colorIndex = parseInt(element.getAttribute('data-option-index'));
+    currentOptions[colorIndex] = value;
+
+    var representativeVariant = productVariants.find(function (v) {
+      return v.options[colorIndex] === value && v.featured_image !== 'null';
+    }) || productVariants.find(function (v) {
+      return v.options[colorIndex] === value;
+    });
+
+    if (representativeVariant) {
+      currentUnitPriceRaw = representativeVariant.price_raw;
+      if (representativeVariant.featured_image && representativeVariant.featured_image !== 'null') {
+        changeMainImage(representativeVariant.featured_image, null, 0);
+        var track = document.getElementById('sliderTrack');
+        if (track) track.style.transform = 'translateX(0px)';
+      }
+    }
+
+    /* ---- 2. Update grid availability for the NEW color ---- */
+    checkGridAvailability();
+
+    /* ---- 3. Restore saved quantities for this color ---- */
+    restoreQuantities(value);
+
+    /* ---- 4. Restore saved artwork for this color (or show empty) ---- */
+    restoreArtwork(value);
+
+    /* ---- 5. Update UI badges & totals ---- */
+    updateColorBadges();
+    updateTotals();
+  };
+
+  window.checkGridAvailability = function () {
+    var sizeInputs = document.querySelectorAll('.quantity-selector-input');
+    sizeInputs.forEach(function (input) {
+      var sizeValue = input.getAttribute('data-value');
+      var sizeOptionIndex = parseInt(input.getAttribute('data-option-index'));
+      var container = input.closest('.size-item');
+      var tempOptions = [].concat(currentOptions);
+      tempOptions[sizeOptionIndex] = sizeValue;
+
+      var match = productVariants.find(function (v) {
+        for (var i = 0; i < tempOptions.length; i++) {
+          if (tempOptions[i] && v.options[i] !== tempOptions[i]) return false;
+        }
+        return true;
+      });
+
+      if (match && match.available) {
+        container.classList.remove('unavailable');
+        input.disabled = false;
+        if (input.placeholder === 'X') input.placeholder = '0';
+      } else {
+        container.classList.add('unavailable');
+        input.disabled = true;
+        input.value = '';
+        input.placeholder = 'X';
+      }
+    });
+    /* Note: callers are responsible for calling updateTotals() after this */
+  };
+
+  window.updateVariant = function (selectElement, index) {
+    currentOptions[index] = selectElement.value;
+    var match = productVariants.find(function (v) { return v.options[index] === selectElement.value; });
+    if (match) currentUnitPriceRaw = match.price_raw;
+    checkGridAvailability();
+    updateTotals();
+  };
+
+  window.changeMainImage = function (imageUrl, element, index) {
+    document.getElementById('MainProductImage').src = imageUrl;
+    if (element) {
+      document.querySelectorAll('.thumbnail-item').forEach(function (t) { t.classList.remove('active'); });
+      element.classList.add('active');
+      if (typeof index !== 'undefined') currentSlideIndex = index;
+    }
+  };
+
+  window.slideImages = function (direction) {
+    currentSlideIndex += direction;
+    if (currentSlideIndex < 0) currentSlideIndex = totalImages - 1;
+    else if (currentSlideIndex >= totalImages) currentSlideIndex = 0;
+
+    var slidePosition = Math.max(0, currentSlideIndex - 1);
+    var offset = Math.min(slidePosition, Math.max(0, totalImages - 4)) * -90;
+    var track = document.getElementById('sliderTrack');
+    if (track) track.style.transform = 'translateX(' + offset + 'px)';
+
+    document.querySelectorAll('.thumbnail-item').forEach(function (t, i) {
+      if (i === currentSlideIndex) {
+        t.classList.add('active');
+        var large = t.getAttribute('data-large-image');
+        if (large) document.getElementById('MainProductImage').src = large;
+      } else {
+        t.classList.remove('active');
+      }
+    });
+  };
+
+  window.switchView = function (view) {
+    view = view.toLowerCase();
+    currentView = view;
+    document.querySelectorAll('.view-btn').forEach(function (btn) { btn.classList.remove('active'); });
+    if (event && event.target) event.target.classList.add('active');
+
+    if (view === 'front') {
+      document.getElementById('Area-Front').style.display = 'flex';
+      document.getElementById('Area-Back').style.display  = 'none';
+      document.getElementById('upload-section-front').style.display = 'block';
+      document.getElementById('upload-section-back').style.display  = 'none';
+    } else {
+      document.getElementById('Area-Front').style.display = 'none';
+      document.getElementById('Area-Back').style.display  = 'flex';
+      document.getElementById('upload-section-front').style.display = 'none';
+      document.getElementById('upload-section-back').style.display  = 'block';
+    }
+
+    /* Auto-switch variant image if a Side/View option exists */
+    var sideOptionIndex = -1;
+    if (productVariants.length > 0) {
+      var test = productVariants[0];
+      if (test.options[1] && /front|back/i.test(test.options[1])) sideOptionIndex = 1;
+      else if (test.options[2] && /front|back/i.test(test.options[2])) sideOptionIndex = 2;
+    }
+
+    if (sideOptionIndex !== -1) {
+      var targetSide = view === 'front' ? 'Front' : 'Back';
+      var matchingVariant = productVariants.find(function (v) {
+        if (v.options[sideOptionIndex].toLowerCase() !== targetSide.toLowerCase()) return false;
+        for (var i = 0; i < currentOptions.length; i++) {
+          if (i !== sideOptionIndex && currentOptions[i] && v.options[i] !== currentOptions[i]) return false;
+        }
+        return true;
+      });
+      if (matchingVariant) {
+        currentOptions[sideOptionIndex] = matchingVariant.options[sideOptionIndex];
+        if (matchingVariant.featured_image && matchingVariant.featured_image !== 'null') {
+          changeMainImage(matchingVariant.featured_image, null, 0);
+          var track = document.getElementById('sliderTrack');
+          if (track) track.style.transform = 'translateX(0px)';
+        }
+      }
+      checkGridAvailability();
+      updateTotals();
+    }
+  };
+
+  /* =======================================================================
+     ADD TO CART
+     ======================================================================= */
+  window.addMultipleToCart = async function (btnElement) {
+    /* Save all current state first */
+    saveCurrentQuantities();
+    saveCurrentArtwork();
+
+    var originalText = btnElement.innerText;
+    btnElement.innerText = 'Adding...';
+    btnElement.disabled = true;
+
+    /* Build items grouped by color so each gets its own artwork */
+    var itemsByColor = {};
+    Object.keys(savedSelections).forEach(function (color) {
+      var sizes = savedSelections[color];
+      Object.keys(sizes).forEach(function (size) {
+        var qty = sizes[size];
+        if (qty > 0) {
+          var variant = findVariantByColorSize(color, size);
+          if (variant && variant.available) {
+            if (!itemsByColor[color]) itemsByColor[color] = [];
+            itemsByColor[color].push({ id: variant.id, quantity: qty });
+          }
+        }
+      });
+    });
+
+    var colorKeys = Object.keys(itemsByColor);
+    if (colorKeys.length === 0) {
+      alert('Please enter a quantity for at least one available size.');
+      btnElement.innerText = originalText;
+      btnElement.disabled = false;
+      return;
+    }
+
+    try {
+      for (var c = 0; c < colorKeys.length; c++) {
+        var color = colorKeys[c];
+        var items = itemsByColor[color];
+
+        /* Get this color's artwork File objects */
+        var artFrontFile = null;
+        var artBackFile  = null;
+        if (savedArtwork[color]) {
+          if (savedArtwork[color].front && savedArtwork[color].front.file) {
+            artFrontFile = savedArtwork[color].front.file;
+          }
+          if (savedArtwork[color].back && savedArtwork[color].back.file) {
+            artBackFile = savedArtwork[color].back.file;
+          }
+        }
+
+        for (var i = 0; i < items.length; i++) {
+          var item = items[i];
+          var formData = new FormData();
+          formData.append('id', item.id);
+          formData.append('quantity', item.quantity);
+
+          /* Attach this color's specific artwork */
+          if (artFrontFile) formData.append('properties[Front Artwork]', artFrontFile);
+          if (artBackFile)  formData.append('properties[Back Artwork]', artBackFile);
+
+          await fetch(window.Shopify.routes.root + 'cart/add.js', { method: 'POST', body: formData });
+        }
+      }
+
+      /* Clear everything after successful add */
+      savedSelections = {};
+      savedArtwork = {};
+      document.querySelectorAll('.quantity-selector-input').forEach(function (input) { input.value = ''; });
+      ['front', 'back'].forEach(function (side) { clearPreview(side); });
+      updateTotals();
+      renderArtworkSummary();
+
+      btnElement.innerText = 'Added!';
+      setTimeout(function () { btnElement.innerText = originalText; btnElement.disabled = false; }, 2000);
+      await refreshAndOpenCart();
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Issue adding to cart.');
+      btnElement.innerText = originalText;
+      btnElement.disabled = false;
+    }
+  };
+
+  async function refreshAndOpenCart() {
+    var res = await fetch(window.Shopify.routes.root + 'cart.js');
+    var cart = await res.json();
+    var cartDrawer = document.querySelector('cart-drawer');
+    var cartNotification = document.querySelector('cart-notification');
+
+    if (cartDrawer && cartDrawer.renderContents) cartDrawer.renderContents(cart);
+    else if (cartNotification && cartNotification.renderContents) { cartNotification.renderContents(cart); cartNotification.open(); }
+
+    var cartIcons = document.querySelectorAll('a[href="/cart"], .header__icon--cart, #cart-icon-bubble, .header-cart-btn, [data-ajax-cart-trigger]');
+    for (var i = 0; i < cartIcons.length; i++) {
+      if (cartIcons[i].offsetParent !== null) { cartIcons[i].click(); break; }
+    }
+    document.documentElement.dispatchEvent(new CustomEvent('cart:refresh', { bubbles: true, detail: { cart: cart } }));
+  }
+
+})();
+</script>
