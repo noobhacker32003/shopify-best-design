@@ -255,7 +255,7 @@
             <label class="bd-lbl">Print Areas</label>
             <div class="bd-checks">
               {% if block.settings.enable_print_area_1 %}<label class="bd-chk"><input type="checkbox" checked data-area="1" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_1_label }}</label>{% endif %}
-              {% if block.settings.enable_print_area_2 %}<label class="bd-chk"><input type="checkbox" checked data-area="2" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_2_label }}</label>{% endif %}
+              {% if block.settings.enable_print_area_2 %}<label class="bd-chk"><input type="checkbox" data-area="2" data-bid="{{ block.id }}" onchange="bdPACheck('{{ section.id }}','{{ block.id }}')"><span class="bd-chk__box"></span>{{ section.settings.print_area_2_label }}</label>{% endif %}
             </div>
           </div>
           {% endif %}
@@ -446,11 +446,14 @@
     }{% unless forloop.last %},{% endunless %}{% endif %}
   {% endfor %}};
 
-  /* Shared artwork uploads (global files) — but per-color variants */
-  var globalArtwork = {
-    1: {},  /* area 1: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
-    2: {}   /* area 2: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
-  };
+  /* Per-product artwork storage: productArtwork[bid][areaNum][colorName] */
+  var productArtwork = {};
+  Object.keys(B).forEach(function(bid){
+    productArtwork[bid] = {
+      1: {},  /* area 1: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
+      2: {}   /* area 2: { colorName: {file, dataUrl, fileName, wrapper}, ... } */
+    };
+  });
 
   /* Per-product overlay positions:  prodPos[bid][areaNum] = {left,top,width,height,rotation} | null */
   var prodPos={};
@@ -554,10 +557,10 @@
     colors.forEach(function(color) {
       var sizes = B[bid].ss[color];
       
-      /* Check if this color has artwork */
+      /* Check if this color has artwork FOR THIS PRODUCT */
       var hasArt = false;
       [1, 2].forEach(function(n) {
-        if (globalArtwork[n] && globalArtwork[n][color]) hasArt = true;
+        if (productArtwork[bid] && productArtwork[bid][n] && productArtwork[bid][n][color]) hasArt = true;
       });
       
       var artIcon = hasArt
@@ -639,8 +642,8 @@
       var wrap = document.getElementById('BDWrap'+n+'-'+S);
 
       if (img && img.src && wrap && wrap.style.display !== 'none') {
-        var existing = (globalArtwork[n] && globalArtwork[n][color]) || {};
-        globalArtwork[n][color] = {
+        var existing = (productArtwork[bid][n] && productArtwork[bid][n][color]) || {};
+        productArtwork[bid][n][color] = {
           file: existing.file || null,
           dataUrl: img.src,
           fileName: existing.fileName || '',
@@ -648,7 +651,7 @@
         };
       } else {
         /* No image loaded — explicitly null */
-        if (globalArtwork[n]) globalArtwork[n][color] = null;
+        if (productArtwork[bid][n]) productArtwork[bid][n][color] = null;
       }
     });
   }
@@ -662,7 +665,7 @@
       var dropBox = document.getElementById('BDDrop'+n+'-'+S);
       var nameDisplay = document.getElementById('BDName'+n+'-'+S);
 
-      var artData = (globalArtwork[n] && globalArtwork[n][color]) || null;
+      var artData = (productArtwork[bid] && productArtwork[bid][n] && productArtwork[bid][n][color]) || null;
 
       if (artData && artData.dataUrl) {
         /* Restore artwork */
@@ -720,19 +723,19 @@
     if (b2) b2.textContent = colorText;
   }
 
-  /* Render artwork summary showing which colors have uploads */
+  /* Render artwork summary showing which colors have uploads FOR CURRENT PRODUCT */
   function renderArtworkSummary() {
     var container = document.getElementById('BDArtworkSummary-'+S);
     var list = document.getElementById('BDArtworkList-'+S);
-    if (!container || !list) return;
+    if (!container || !list || !expB) return;
 
-    /* Collect all colors that have artwork */
+    /* Collect all colors that have artwork FOR THIS PRODUCT */
     var artworkByColor = {};
     
     [1, 2].forEach(function(n) {
-      if (!globalArtwork[n]) return;
-      Object.keys(globalArtwork[n]).forEach(function(color) {
-        var art = globalArtwork[n][color];
+      if (!productArtwork[expB] || !productArtwork[expB][n]) return;
+      Object.keys(productArtwork[expB][n]).forEach(function(color) {
+        var art = productArtwork[expB][n][color];
         if (!art || !art.dataUrl) return;
         
         if (!artworkByColor[color]) {
@@ -768,13 +771,17 @@
   }
 
   window.removeColorArtwork = function(color) {
-    /* Remove from global artwork */
+    if (!expB) return;
+    
+    /* Remove from THIS product's artwork only */
     [1, 2].forEach(function(n) {
-      if (globalArtwork[n]) delete globalArtwork[n][color];
+      if (productArtwork[expB] && productArtwork[expB][n]) {
+        delete productArtwork[expB][n][color];
+      }
     });
     
     /* If this is the current color, clear preview */
-    if (expB && color === getCurrentColor(expB)) {
+    if (color === getCurrentColor(expB)) {
       [1, 2].forEach(function(n) {
         var wrap = document.getElementById('BDWrap'+n+'-'+S);
         var img = document.getElementById('BDPrev'+n+'-'+S);
@@ -909,12 +916,23 @@
 
     /* Get current product's color */
     var color = expB ? getCurrentColor(expB) : '__default__';
+    if (!expB) {
+      alert('Please select a product first.');
+      e.target.value='';
+      return;
+    }
 
     var rd=new FileReader();
     rd.onload=function(ev){
-      /* Save to global artwork for this area + color */
-      if (!globalArtwork[n]) globalArtwork[n] = {};
-      globalArtwork[n][color] = {
+      /* Save to THIS product's artwork for this area + color */
+      if (!productArtwork[expB]) {
+        productArtwork[expB] = {1: {}, 2: {}};
+      }
+      if (!productArtwork[expB][n]) {
+        productArtwork[expB][n] = {};
+      }
+      
+      productArtwork[expB][n][color] = {
         file: f,
         dataUrl: ev.target.result,
         fileName: f.name,
@@ -955,8 +973,8 @@
           selectWrap(wrap);
           
           /* Save initial wrapper state */
-          if (globalArtwork[n] && globalArtwork[n][color]) {
-            globalArtwork[n][color].wrapper = getWrapState(n);
+          if (productArtwork[expB] && productArtwork[expB][n] && productArtwork[expB][n][color]) {
+            productArtwork[expB][n][color].wrapper = getWrapState(n);
           }
         };
         img.src=ev.target.result;
@@ -976,8 +994,10 @@
     if (!expB) return;
     var color = getCurrentColor(expB);
     
-    /* Remove from global artwork for this color */
-    if (globalArtwork[n]) delete globalArtwork[n][color];
+    /* Remove from THIS product's artwork for this color */
+    if (productArtwork[expB] && productArtwork[expB][n]) {
+      delete productArtwork[expB][n][color];
+    }
     
     /* Clear UI */
     var wrap=document.getElementById('BDWrap'+n+'-'+sid);
@@ -1338,15 +1358,19 @@
     var qb=document.getElementById('BDTgQ-'+bid);
     if(qb){qb.textContent=q+' Selected';qb.className='bd-tag bd-tag--qty'+(q>0?' ok':'');}
     
-    /* Check if ANY color has artwork for this product's enabled areas */
+    /* Check if ANY color has artwork for THIS product's enabled areas */
     var hasArt = false;
-    B[bid].pa.forEach(function(n) {
-      if (globalArtwork[n]) {
-        Object.keys(B[bid].ss).forEach(function(color) {
-          if (globalArtwork[n][color]) hasArt = true;
-        });
-      }
-    });
+    if (productArtwork[bid]) {
+      B[bid].pa.forEach(function(n) {
+        if (productArtwork[bid][n]) {
+          Object.keys(B[bid].ss).forEach(function(color) {
+            if (productArtwork[bid][n][color] && productArtwork[bid][n][color].dataUrl) {
+              hasArt = true;
+            }
+          });
+        }
+      });
+    }
     
     var ab=document.getElementById('BDTgA-'+bid);
     if(ab){ab.textContent=hasArt?'Artwork ready':'No artwork';ab.className='bd-tag bd-tag--art'+(hasArt?' ok':'');}
@@ -1377,14 +1401,18 @@
     var ie=document.getElementById('BDItems-'+S);
     if(ie)ie.textContent=ti+' items across '+pc+' products';
     
-    /* Check if any artwork exists globally */
+    /* Check if any artwork exists FOR ANY PRODUCT */
     var hasAnyArt = false;
-    [1, 2].forEach(function(n) {
-      if (globalArtwork[n] && Object.keys(globalArtwork[n]).length > 0) {
-        Object.keys(globalArtwork[n]).forEach(function(color) {
-          if (globalArtwork[n][color] && globalArtwork[n][color].dataUrl) hasAnyArt = true;
-        });
-      }
+    Object.keys(productArtwork).forEach(function(bid) {
+      [1, 2].forEach(function(n) {
+        if (productArtwork[bid] && productArtwork[bid][n]) {
+          Object.keys(productArtwork[bid][n]).forEach(function(color) {
+            if (productArtwork[bid][n][color] && productArtwork[bid][n][color].dataUrl) {
+              hasAnyArt = true;
+            }
+          });
+        }
+      });
     });
     
     var ab=document.getElementById('BDArtBadge-'+S);
@@ -1418,7 +1446,7 @@
     btn.textContent='Adding...';
     btn.disabled=true;
     
-    /* Build cart items with per-color artwork */
+    /* Build cart items with per-product, per-color artwork */
     var items=[];
     Object.keys(B).forEach(function(bid){
       Object.keys(B[bid].ss).forEach(function(color){
@@ -1455,11 +1483,14 @@
         fd.append('id',it.id);
         fd.append('quantity',it.quantity);
         
-        /* Attach artwork files specific to this color */
+        /* Attach artwork files specific to THIS product AND color */
         it.pa.forEach(function(n) {
-          if (globalArtwork[n] && globalArtwork[n][it.color] && globalArtwork[n][it.color].file) {
+          if (productArtwork[it.bid] && 
+              productArtwork[it.bid][n] && 
+              productArtwork[it.bid][n][it.color] && 
+              productArtwork[it.bid][n][it.color].file) {
             var label = n === 1 ? '{{ section.settings.print_area_1_label | escape }}' : '{{ section.settings.print_area_2_label | escape }}';
-            fd.append('properties['+label+']', globalArtwork[n][it.color].file);
+            fd.append('properties['+label+']', productArtwork[it.bid][n][it.color].file);
           }
         });
         
